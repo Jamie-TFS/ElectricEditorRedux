@@ -1,0 +1,8 @@
+build/bin
+node_modules
+frontend/dist
+signing.key
+release/
+build/bin/
+frontend/node_modules/
+frontend/dist/

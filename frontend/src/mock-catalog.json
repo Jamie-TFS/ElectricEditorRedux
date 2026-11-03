@@ -1,0 +1,214 @@
+[
+  {
+    "id": "kazuya",
+    "name": "Kazuya",
+    "effects": [
+      {
+        "id": "electric",
+        "label": "Electrics",
+        "parts": [
+          {
+            "id": "bolt",
+            "label": "Bolt",
+            "role": "core"
+          },
+          {
+            "id": "glow",
+            "label": "Glow",
+            "role": "glow"
+          },
+          {
+            "id": "outer",
+            "label": "Outer arc",
+            "role": "outer"
+          },
+          {
+            "id": "outer2",
+            "label": "Outer arc 2",
+            "role": "outer"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "jin",
+    "name": "Jin",
+    "effects": [
+      {
+        "id": "electric",
+        "label": "Electrics",
+        "parts": [
+          {
+            "id": "trail",
+            "label": "Trail",
+            "role": "trail"
+          },
+          {
+            "id": "trail2",
+            "label": "Trail 2",
+            "role": "trail"
+          },
+          {
+            "id": "lightning",
+            "label": "Lightning",
+            "role": "core"
+          },
+          {
+            "id": "lightning2",
+            "label": "Lightning 2",
+            "role": "glow"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "deviljin",
+    "name": "Devil Jin",
+    "effects": [
+      {
+        "id": "electric",
+        "label": "Electrics",
+        "parts": [
+          {
+            "id": "trail",
+            "label": "Trail",
+            "role": "trail"
+          },
+          {
+            "id": "trail2",
+            "label": "Trail 2",
+            "role": "trail"
+          },
+          {
+            "id": "lightning",
+            "label": "Lightning",
+            "role": "core"
+          },
+          {
+            "id": "lightning2",
+            "label": "Lightning 2",
+            "role": "glow"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "reina",
+    "name": "Reina",
+    "effects": [
+      {
+        "id": "electric",
+        "label": "Electrics",
+        "parts": [
+          {
+            "id": "bolt",
+            "label": "Bolt",
+            "role": "core"
+          },
+          {
+            "id": "glow",
+            "label": "Glow",
+            "role": "glow"
+          },
+          {
+            "id": "outer",
+            "label": "Outer arc",
+            "role": "outer"
+          },
+          {
+            "id": "outer2",
+            "label": "Outer arc 2",
+            "role": "outer"
+          }
+        ]
+      },
+      {
+        "id": "kick",
+        "label": "Electric kick",
+        "parts": [
+          {
+            "id": "bolt",
+            "label": "Bolt",
+            "role": "core"
+          },
+          {
+            "id": "glow",
+            "label": "Glow",
+            "role": "glow"
+          },
+          {
+            "id": "outer",
+            "label": "Outer arc",
+            "role": "outer"
+          },
+          {
+            "id": "outer2",
+            "label": "Outer arc 2",
+            "role": "outer"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "heihachi",
+    "name": "Heihachi",
+    "effects": [
+      {
+        "id": "electric",
+        "label": "Electrics",
+        "parts": [
+          {
+            "id": "bolt",
+            "label": "Bolt",
+            "role": "core"
+          },
+          {
+            "id": "glow",
+            "label": "Glow",
+            "role": "glow"
+          },
+          {
+            "id": "outer",
+            "label": "Outer arc",
+            "role": "outer"
+          },
+          {
+            "id": "outer2",
+            "label": "Outer arc 2",
+            "role": "outer"
+          }
+        ]
+      },
+      {
+        "id": "raijin",
+        "label": "CD1 electric",
+        "parts": [
+          {
+            "id": "bolt",
+            "label": "Bolt",
+            "role": "core"
+          },
+          {
+            "id": "glow",
+            "label": "Glow",
+            "role": "glow"
+          },
+          {
+            "id": "outer",
+            "label": "Outer arc",
+            "role": "outer"
+          },
+          {
+            "id": "outer2",
+            "label": "Outer arc 2",
+            "role": "outer"
+          }
+        ]
+      }
+    ]
+  }
+]
