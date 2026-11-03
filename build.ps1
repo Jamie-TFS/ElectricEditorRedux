@@ -8,7 +8,7 @@ param([Parameter(Mandatory = $true)][string]$Version)
 
 $ErrorActionPreference = "Stop"
 $PubKey = "852df7xXKKYL1epftM+yHaau56kqsKBc/gpq5N/zQfY="          # <- paste the public key from keygen here
-$Repo = "Jamie-TFS/ElectricEditor"
+$Repo = "Jamie-TFS/ElectricEditorRedux"
 
 foreach ($tool in @("go", "node", "npm", "wails")) {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {

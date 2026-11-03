@@ -10,7 +10,7 @@ import (
 //	-X main.version=1.2.0 -X main.updateRepo=owner/repo -X main.publicKey=<base64>
 var (
 	version    = "dev"
-	updateRepo = "Jamie-TFS/ElectricEditor"
+	updateRepo = "Jamie-TFS/ElectricEditorRedux"
 	publicKey  = "" // base64 ed25519 public key; verifies updates AND keys. Empty = both off.
 )
 
