@@ -45,7 +45,6 @@ There's one download, `ElectricEditor.exe`. Keys unlock extras (Manage → Enter
 | none | everything a regular user needs |
 | `donator` | a Supporter badge (more perks can hang off this later) |
 | `dev` | research tools in the Manage menu, and pre-release updates |
-| `amy` | Amy's theme and greeting |
 
 A key is signed with the maintainer's private key, so it can't be forged. To
 turn off a leaked key, add its ID to `revoked.txt` in this repo; the app checks
