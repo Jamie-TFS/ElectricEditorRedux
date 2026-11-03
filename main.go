@@ -16,7 +16,7 @@ func main() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
-		Title:            currentEdition().Title,
+		Title:            app.Edition().Title,
 		Width:            1240,
 		Height:           800,
 		MinWidth:         1040,

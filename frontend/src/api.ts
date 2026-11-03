@@ -25,13 +25,15 @@ export interface Status {
 }
 
 export interface Edition {
-  id: string; title: string; theme: string; asset: string; channel: string;
-  devTools: boolean; greeting: string; version: string;
+  tier: string; title: string; theme: string; channel: string; devTools: boolean;
+  badge: string; greeting: string; keyName: string; keysOn: boolean; version: string;
 }
 export interface UpdateStatus { state: "disabled" | "checking" | "current" | "ready" | "error"; version: string; message: string }
 
 interface Backend {
   Edition(): Promise<Edition>;
+  ActivateKey(key: string): Promise<Edition>;
+  RemoveKey(): Promise<Edition>;
   UpdateStatus(): Promise<UpdateStatus>;
   RestartToUpdate(): Promise<void>;
   Background(): Promise<string>;
@@ -64,6 +66,17 @@ const isApp = () => !!window.go?.main?.App;
 
 // ------------------------------------------------------------ browser mock
 
+function mockEdition(tier: string): Edition {
+  const t: Record<string, Partial<Edition>> = {
+    "": { title: "Electric Editor", theme: "storm" },
+    donator: { title: "Electric Editor", theme: "storm", badge: "Supporter", keyName: "Sam" },
+    dev: { title: "Electric Editor dev", theme: "storm", devTools: true, badge: "Dev", channel: "beta", keyName: "Jamie" },
+    amy: { title: "Amy's Electric Editor", theme: "amy", greeting: "Hi Amy", keyName: "Amy" },
+  };
+  return { tier, title: "", theme: "storm", channel: "stable", devTools: false, badge: "", greeting: "", keyName: "",
+    keysOn: true, version: "1.0.0", ...t[tier] } as Edition;
+}
+
 function makeMock(): Backend {
   const def = (): Setting => ({
     mode: "native", color: "#7c5cff", brightness: 6, keepFade: true,
@@ -86,13 +99,13 @@ function makeMock(): Backend {
   }
   const params = new URLSearchParams(location.search);
   return {
-    Edition: async () => ({
-      id: params.get("edition") ?? "standard",
-      title: params.get("edition") === "amy" ? "Amy's Electric Editor" : "Electric Editor",
-      theme: params.get("edition") === "amy" ? "amy" : "storm",
-      asset: "ElectricEditor.exe", channel: "stable",
-      devTools: params.get("edition") === "dev", greeting: params.get("edition") === "amy" ? "Hi Amy" : "", version: "1.0.0",
-    }),
+    Edition: async () => mockEdition(params.get("key") ?? ""),
+    ActivateKey: async (k: string) => {
+      const tier = /amy/i.test(k) ? "amy" : /dev/i.test(k) ? "dev" : /don/i.test(k) ? "donator" : "";
+      if (!tier) throw "that key isn't valid - check you copied all of it";
+      return mockEdition(tier);
+    },
+    RemoveKey: async () => mockEdition(""),
     UpdateStatus: async () => ({ state: params.get("update") === "ready" ? "ready" : "current", version: "1.1.0", message: "" }),
     RestartToUpdate: async () => {},
     Background: async () => "",
@@ -126,6 +139,10 @@ function makeMock(): Backend {
 const backend: Backend = isApp() ? window.go!.main!.App! : makeMock();
 
 export const api = backend;
+
+export function onEdition(cb: (e: Edition) => void): void {
+  if (isApp() && window.runtime) window.runtime.EventsOn("edition", (e) => cb(e as Edition));
+}
 
 export function onUpdate(cb: (s: UpdateStatus) => void): void {
   if (isApp() && window.runtime) window.runtime.EventsOn("update", (s) => cb(s as UpdateStatus));

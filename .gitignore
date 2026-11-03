@@ -6,3 +6,9 @@ release/
 build/bin/
 frontend/node_modules/
 frontend/dist/
+issued-keys.txt
+
+# private key system (official builds only, see license_stub.go)
+license_keys.go
+license_test.go
+signer_compat_test.go

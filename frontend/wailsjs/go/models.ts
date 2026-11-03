@@ -144,13 +144,15 @@ export namespace fx {
 export namespace main {
 	
 	export class Edition {
-	    id: string;
+	    tier: string;
 	    title: string;
 	    theme: string;
-	    asset: string;
 	    channel: string;
 	    devTools: boolean;
+	    badge: string;
 	    greeting: string;
+	    keyName: string;
+	    keysOn: boolean;
 	    version: string;
 	
 	    static createFrom(source: any = {}) {
@@ -159,13 +161,15 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
+	        this.tier = source["tier"];
 	        this.title = source["title"];
 	        this.theme = source["theme"];
-	        this.asset = source["asset"];
 	        this.channel = source["channel"];
 	        this.devTools = source["devTools"];
+	        this.badge = source["badge"];
 	        this.greeting = source["greeting"];
+	        this.keyName = source["keyName"];
+	        this.keysOn = source["keysOn"];
 	        this.version = source["version"];
 	    }
 	}

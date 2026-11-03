@@ -47,7 +47,8 @@ type ghRelease struct {
 }
 
 type Updater struct {
-	ed      Edition
+	version string
+	channel func() string // stable | beta, from the active key
 	apiBase string
 	client  *http.Client
 	pub     ed25519.PublicKey
@@ -55,17 +56,15 @@ type Updater struct {
 	status  UpdateStatus
 }
 
-func NewUpdater(ed Edition) *Updater {
-	u := &Updater{
-		ed:      ed,
+func NewUpdater(channel func() string) *Updater {
+	return &Updater{
+		version: version,
+		channel: channel,
 		apiBase: "https://api.github.com/repos/" + updateRepo,
 		client:  &http.Client{Timeout: 60 * time.Second},
 		exePath: os.Executable,
+		pub:     pubKey(),
 	}
-	if k, err := base64.StdEncoding.DecodeString(updatePubKey); err == nil && len(k) == ed25519.PublicKeySize {
-		u.pub = k
-	}
-	return u
 }
 
 // CleanupOld removes the previous exe left behind by the last update.
@@ -83,33 +82,33 @@ func (u *Updater) Run(ctx context.Context) {
 func (u *Updater) Status() UpdateStatus { return u.status }
 
 func (u *Updater) check() UpdateStatus {
-	if u.ed.Version == "dev" || u.pub == nil {
-		return UpdateStatus{State: "disabled", Version: u.ed.Version}
+	if u.version == "dev" || u.pub == nil {
+		return UpdateStatus{State: "disabled", Version: u.version}
 	}
 	rel, asset, sig, err := u.findUpdate()
 	if err != nil {
-		return UpdateStatus{State: "error", Version: u.ed.Version, Message: "Couldn't check for updates: " + err.Error()}
+		return UpdateStatus{State: "error", Version: u.version, Message: "Couldn't check for updates: " + err.Error()}
 	}
 	if rel == nil {
-		return UpdateStatus{State: "current", Version: u.ed.Version}
+		return UpdateStatus{State: "current", Version: u.version}
 	}
 	data, err := u.download(asset.URL, 150<<20)
 	if err != nil {
-		return UpdateStatus{State: "error", Version: u.ed.Version, Message: "Update download failed: " + err.Error()}
+		return UpdateStatus{State: "error", Version: u.version, Message: "Update download failed: " + err.Error()}
 	}
 	sigRaw, err := u.download(sig.URL, 4096)
 	if err != nil {
-		return UpdateStatus{State: "error", Version: u.ed.Version, Message: "Update signature missing"}
+		return UpdateStatus{State: "error", Version: u.version, Message: "Update signature missing"}
 	}
 	if !verify(u.pub, data, sigRaw) {
-		return UpdateStatus{State: "error", Version: u.ed.Version, Message: "Update rejected: signature didn't match. Download it from GitHub instead."}
+		return UpdateStatus{State: "error", Version: u.version, Message: "Update rejected: signature didn't match. Download it from GitHub instead."}
 	}
 	exe, err := u.exePath()
 	if err != nil {
-		return UpdateStatus{State: "error", Version: u.ed.Version, Message: err.Error()}
+		return UpdateStatus{State: "error", Version: u.version, Message: err.Error()}
 	}
 	if err := applyUpdate(exe, data); err != nil {
-		return UpdateStatus{State: "error", Version: u.ed.Version, Message: "Couldn't install the update: " + err.Error()}
+		return UpdateStatus{State: "error", Version: u.version, Message: "Couldn't install the update: " + err.Error()}
 	}
 	return UpdateStatus{State: "ready", Version: strings.TrimPrefix(rel.Tag, "v")}
 }
@@ -130,14 +129,14 @@ func (u *Updater) findUpdate() (*ghRelease, *ghAsset, *ghAsset, error) {
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&rels); err != nil {
 		return nil, nil, nil, errors.New("unexpected reply from GitHub")
 	}
-	r, a, s := pickRelease(rels, u.ed)
+	r, a, s := pickRelease(rels, u.version, u.channel())
 	return r, a, s, nil
 }
 
 // pickRelease returns the newest release newer than the running version that
-// has this edition's exe and signature, respecting the update channel.
-func pickRelease(rels []ghRelease, ed Edition) (*ghRelease, *ghAsset, *ghAsset) {
-	cur, ok := parseVersion(ed.Version)
+// has the exe and its signature, respecting the update channel.
+func pickRelease(rels []ghRelease, current, channel string) (*ghRelease, *ghAsset, *ghAsset) {
+	cur, ok := parseVersion(current)
 	if !ok {
 		return nil, nil, nil
 	}
@@ -146,7 +145,7 @@ func pickRelease(rels []ghRelease, ed Edition) (*ghRelease, *ghAsset, *ghAsset) 
 	var bestA, bestS *ghAsset
 	for i := range rels {
 		r := &rels[i]
-		if r.Draft || (r.Prerelease && ed.Channel != "beta") {
+		if r.Draft || (r.Prerelease && channel != "beta") {
 			continue
 		}
 		v, ok := parseVersion(r.Tag)
@@ -156,9 +155,9 @@ func pickRelease(rels []ghRelease, ed Edition) (*ghRelease, *ghAsset, *ghAsset) 
 		var a, s *ghAsset
 		for j := range r.Assets {
 			switch r.Assets[j].Name {
-			case ed.Asset:
+			case releaseAsset:
 				a = &r.Assets[j]
-			case ed.Asset + ".sig":
+			case releaseAsset + ".sig":
 				s = &r.Assets[j]
 			}
 		}

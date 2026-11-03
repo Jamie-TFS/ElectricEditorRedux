@@ -335,6 +335,13 @@ body.dev .dev-only { display: block; }
 }
 .greeting[hidden] { display: none; }
 
+.badge {
+  font-size: 12px; font-weight: 700;
+  padding: 3px 9px; border-radius: 999px;
+  color: var(--accent-ink); background: var(--accent);
+}
+.badge[hidden], .menu [hidden] { display: none; }
+
 .update { display: flex; align-items: center; gap: 10px; font-size: 13px; }
 .update[hidden] { display: none; }
 

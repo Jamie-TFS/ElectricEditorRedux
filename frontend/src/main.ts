@@ -5,7 +5,7 @@ import "@fontsource/manrope/600.css";
 import "@fontsource/manrope/700.css";
 import "./style.css";
 
-import { api, errText, keyOf, onStatus, onUpdate, type Character, type Mode, type Setting, type State, type Status } from "./api";
+import { api, errText, keyOf, onEdition, onStatus, onUpdate, type Character, type Edition, type Mode, type Setting, type State, type Status } from "./api";
 import { cssGradient, inkFor, keyColor } from "./color";
 import { GradientEditor } from "./gradient";
 import { ColorPicker } from "./picker";
@@ -26,6 +26,7 @@ document.querySelector("#app")!.innerHTML = `
   <header class="top">
     <div class="brand"><span class="mark" aria-hidden="true"></span><span class="brand-name">Electric Editor</span></div>
     <span class="greeting" hidden></span>
+    <span class="badge" hidden></span>
     <div class="conn" role="status"><span class="dot"></span><span class="conn-text">Looking for Tekken…</span></div>
     <div class="update" hidden>
       <span class="update-text"></span>
@@ -42,6 +43,9 @@ document.querySelector("#app")!.innerHTML = `
         <button role="menuitem" data-act="rename">Rename</button>
         <button role="menuitem" data-act="delete" class="danger">Delete</button>
         <hr>
+        <button role="menuitem" data-act="key" class="keys-on">Enter a key…</button>
+        <button role="menuitem" data-act="key-remove" class="key-remove" hidden></button>
+        <hr class="keys-on">
         <button role="menuitem" data-act="bg">Set background image…</button>
         <button role="menuitem" data-act="bg-clear">Remove background image</button>
         <hr>
@@ -126,6 +130,18 @@ document.querySelector("#app")!.innerHTML = `
       <div class="dlg-actions">
         <button class="ghost" value="cancel" formnovalidate>Cancel</button>
         <button class="primary" value="ok" id="name-ok"></button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="key-dlg" aria-labelledby="key-title">
+    <form method="dialog" class="dlg small">
+      <h2 id="key-title">Enter a key</h2>
+      <p class="muted">Keys unlock extras like supporter badges. Paste the whole key, starting with EE-.</p>
+      <textarea id="key-in" rows="3" spellcheck="false" placeholder="EE-…" aria-labelledby="key-title"></textarea>
+      <p class="form-error" id="key-error" role="alert"></p>
+      <div class="dlg-actions">
+        <button class="ghost" value="cancel" formnovalidate>Cancel</button>
+        <button class="primary" value="ok" id="key-ok">Activate key</button>
       </div>
     </form>
   </dialog>
@@ -344,6 +360,27 @@ menu.addEventListener("click", async (e) => {
   menu.hidden = true;
   if (act === "new") askName("New profile", "Create profile", "", (n) => api.CreateProfile(n));
   if (act === "rename") askName("Rename profile", "Rename", state.active, (n) => api.RenameProfile(n));
+  if (act === "key") {
+    const dlg = $<HTMLDialogElement>("#key-dlg");
+    $("#key-error").textContent = "";
+    $<HTMLTextAreaElement>("#key-in").value = "";
+    dlg.showModal();
+    $<HTMLFormElement>("form", dlg).onsubmit = async (ev) => {
+      if ((ev.submitter as HTMLButtonElement)?.value !== "ok") return;
+      ev.preventDefault();
+      try {
+        const ed = await api.ActivateKey($<HTMLTextAreaElement>("#key-in").value);
+        applyEdition(ed);
+        dlg.close();
+        toast(ed.badge ? `Key activated: ${ed.badge}` : ed.greeting ? `${ed.greeting}!` : "Key activated");
+      } catch (err) { $("#key-error").textContent = errText(err); }
+    };
+  }
+  if (act === "key-remove") {
+    if (!confirm("Remove your key from this PC? You can enter it again any time.")) return;
+    applyEdition(await api.RemoveKey());
+    toast("Key removed");
+  }
   if (act === "bg") {
     try { setBackground(await api.ChooseBackground()); } catch (err) { toast(errText(err)); }
   }
@@ -404,8 +441,7 @@ function setBackground(url: string) {
   document.body.classList.toggle("has-bg", !!url);
 }
 
-async function applyEdition() {
-  const ed = await api.Edition();
+function applyEdition(ed: Edition) {
   document.body.dataset.theme = ed.theme;
   document.body.classList.toggle("dev", ed.devTools);
   document.title = ed.title;
@@ -413,9 +449,17 @@ async function applyEdition() {
   const g = $(".greeting");
   g.textContent = ed.greeting;
   g.hidden = !ed.greeting;
+  const badge = $(".badge");
+  badge.textContent = ed.badge;
+  badge.hidden = !ed.badge;
+  document.querySelectorAll<HTMLElement>(".keys-on").forEach((el) => (el.hidden = !ed.keysOn || !!ed.tier));
+  const rm = $(".key-remove");
+  rm.hidden = !ed.tier;
+  rm.textContent = `Remove key${ed.keyName ? ` (${ed.keyName})` : ""}`;
   $(".menu-version").textContent = ed.version === "dev" ? "Development build" : `Version ${ed.version}`;
-  setBackground(await api.Background().catch(() => ""));
+  if (catalog.length) renderAccents();
 }
+onEdition(applyEdition);
 
 onUpdate((u) => {
   const box = $(".update");
@@ -428,7 +472,8 @@ $("#restart").addEventListener("click", () => api.RestartToUpdate().catch((e) =>
 // ------------------------------------------------------------------ boot
 
 (async () => {
-  await applyEdition();
+  applyEdition(await api.Edition());
+  setBackground(await api.Background().catch(() => ""));
   [catalog, state, defaults] = await Promise.all([api.Catalog(), api.State(), api.DefaultSetting()]);
   select(catalog[0].id);
   onStatus((s) => { status = s; renderStatus(); renderLayers(); });

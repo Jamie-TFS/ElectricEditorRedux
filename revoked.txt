@@ -1,0 +1,2 @@
+# Electric Editor revoked keys
+# One key ID per line. The app checks this file on launch.

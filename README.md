@@ -36,29 +36,47 @@ Tekken's electrics are Niagara effects whose colour over time comes from
 - indexes every colour curve, remembers the original values, and writes the
   colours you pick, re-applying whenever the game reloads an effect.
 
-## Editions and updates
+## Keys and updates
 
-The same code builds several editions (see `edition.go`):
+There's one download, `ElectricEditor.exe`. Keys unlock extras (Manage → Enter a key):
 
-| Edition | File | Updates from | Extras |
-|---|---|---|---|
-| standard | `ElectricEditor.exe` | stable releases | |
-| dev | `ElectricEditor-dev.exe` | stable + pre-releases | research tools in the Manage menu |
-| amy | `ElectricEditor-amy.exe` | stable releases | Amy's theme and greeting |
+| Key tier | Unlocks |
+|---|---|
+| none | everything a regular user needs |
+| `donator` | a Supporter badge (more perks can hang off this later) |
+| `dev` | research tools in the Manage menu, and pre-release updates |
+| `amy` | Amy's theme and greeting |
 
-On launch each edition checks GitHub Releases for a newer version of its own
-file, verifies its ed25519 signature against the public key built into the app,
-installs it, and offers a restart. Unsigned or wrongly signed files are refused.
+A key is signed with the maintainer's private key, so it can't be forged. To
+turn off a leaked key, add its ID to `revoked.txt` in this repo; the app checks
+that file on launch. New tiers go in `edition.go`.
+
+On launch the app checks GitHub Releases for a newer `ElectricEditor.exe`,
+verifies its signature against the public key built into the app, installs it
+and offers a restart. Unsigned or wrongly signed files are refused.
+
+Maintainer setup (once, in this folder):
+
+1. `go run ./tools/signer keygen`, paste the printed public key into `build.ps1`,
+   and back up `signing.key` (git-ignored; losing it means installed copies can't update).
+
+Making keys:
+
+```
+go run ./tools/signer key amy Amy
+go run ./tools/signer key donator "Their name"
+go run ./tools/signer key dev Jamie
+```
+
+Each key's ID is logged to `issued-keys.txt` (git-ignored) so you can revoke it later.
 
 Releasing:
 
-1. One time: `go run ./tools/signer keygen`, paste the printed public key into
-   `build.ps1`, and back up `signing.key` somewhere safe (it's git-ignored).
-2. `./build.ps1 1.2.0` builds and signs every edition into `release/`.
-3. Create a GitHub release tagged `v1.2.0` and upload every `.exe` and `.exe.sig`.
-   Mark it as a pre-release to send it only to the dev edition.
+1. `./build.ps1 1.2.0` builds and signs `release/ElectricEditor.exe`.
+2. Create a GitHub release tagged `v1.2.0` and upload the `.exe` and `.exe.sig`.
+   Mark it as a pre-release to send it only to dev keys.
 
-Any edition can show a background image (Manage → Set background image). It's
+Any copy can show a background image (Manage → Set background image). It's
 stored only on that PC in `%APPDATA%\ElectricEditor\`.
 
 ## Building

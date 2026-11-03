@@ -21,22 +21,46 @@ type App struct {
 	ctx     context.Context
 	store   *store.Store
 	engine  *Engine
+	keys    *Keyring
 	updater *Updater
 }
 
 func NewApp() *App {
 	s := store.Load()
-	return &App{store: s, engine: NewEngine(s), updater: NewUpdater(currentEdition())}
+	a := &App{store: s, engine: NewEngine(s), keys: NewKeyring(pubKey())}
+	a.updater = NewUpdater(func() string { return a.Edition().Channel })
+	return a
 }
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.engine.Start(ctx)
 	a.updater.CleanupOld()
-	go a.updater.Run(ctx)
+	go func() {
+		if keysAvailable && a.keys.LoadRevoked(revokedURL(), httpClient) {
+			wruntime.EventsEmit(ctx, "edition", a.Edition())
+		}
+		a.updater.Run(ctx)
+	}()
 }
 
-func (a *App) Edition() Edition           { return currentEdition() }
+func (a *App) Edition() Edition { return editionFor(a.keys.License()) }
+
+// ActivateKey checks and saves a key; the UI re-themes from the result.
+func (a *App) ActivateKey(key string) (Edition, error) {
+	_, err := a.keys.Activate(key)
+	ed := a.Edition()
+	wruntime.WindowSetTitle(a.ctx, ed.Title)
+	return ed, err
+}
+
+func (a *App) RemoveKey() Edition {
+	a.keys.Remove()
+	ed := a.Edition()
+	wruntime.WindowSetTitle(a.ctx, ed.Title)
+	return ed
+}
+
 func (a *App) UpdateStatus() UpdateStatus { return a.updater.Status() }
 func (a *App) RestartToUpdate() error     { return a.updater.Restart(a.ctx) }
 

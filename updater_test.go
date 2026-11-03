@@ -45,29 +45,22 @@ func rel(tag string, pre bool, assets ...string) ghRelease {
 
 func TestPickRelease(t *testing.T) {
 	rels := []ghRelease{
-		rel("v1.3.0-beta.1", true, "ElectricEditor.exe", "ElectricEditor.exe.sig", "ElectricEditor-dev.exe", "ElectricEditor-dev.exe.sig"),
-		rel("v1.2.0", false, "ElectricEditor.exe", "ElectricEditor.exe.sig", "ElectricEditor-amy.exe", "ElectricEditor-amy.exe.sig"),
+		rel("v1.3.0-beta.1", true, "ElectricEditor.exe", "ElectricEditor.exe.sig"),
+		rel("v1.2.0", false, "ElectricEditor.exe", "ElectricEditor.exe.sig"),
 		rel("v1.1.5", false, "ElectricEditor.exe", "ElectricEditor.exe.sig"),
 		rel("v1.4.0", false, "ElectricEditor.exe"), // unsigned: must be ignored
 	}
-	std := editions["standard"]
-	std.Version = "1.1.0"
-	if r, _, _ := pickRelease(rels, std); r == nil || r.Tag != "v1.2.0" {
+	if r, _, _ := pickRelease(rels, "1.1.0", "stable"); r == nil || r.Tag != "v1.2.0" {
 		t.Fatalf("stable should get v1.2.0, got %+v", r)
 	}
-	dev := editions["dev"]
-	dev.Version = "1.1.0"
-	if r, _, _ := pickRelease(rels, dev); r == nil || r.Tag != "v1.3.0-beta.1" {
-		t.Fatalf("dev should get the beta, got %+v", r)
+	if r, _, _ := pickRelease(rels, "1.1.0", "beta"); r == nil || r.Tag != "v1.3.0-beta.1" {
+		t.Fatalf("beta should get the pre-release, got %+v", r)
 	}
-	amy := editions["amy"]
-	amy.Version = "1.2.0"
-	if r, _, _ := pickRelease(rels, amy); r != nil {
-		t.Fatalf("amy is current, got %+v", r)
+	if r, _, _ := pickRelease(rels, "1.2.0", "stable"); r != nil {
+		t.Fatalf("1.2.0 is current, got %+v", r)
 	}
-	amy.Version = "1.0.0"
-	if _, a, _ := pickRelease(rels, amy); a == nil || a.Name != "ElectricEditor-amy.exe" {
-		t.Fatal("amy must update from her own file")
+	if r, _, _ := pickRelease(rels, "dev", "stable"); r != nil {
+		t.Fatal("dev builds never update")
 	}
 }
 
@@ -121,9 +114,7 @@ func TestUpdaterEndToEnd(t *testing.T) {
 		defer srv.Close()
 		exe := filepath.Join(t.TempDir(), "ElectricEditor.exe")
 		os.WriteFile(exe, []byte("v1.0.0 exe"), 0o755)
-		ed := editions["standard"]
-		ed.Version = "1.0.0"
-		u := &Updater{ed: ed, apiBase: srv.URL, client: srv.Client(), pub: pub,
+		u := &Updater{version: "1.0.0", channel: func() string { return "stable" }, apiBase: srv.URL, client: srv.Client(), pub: pub,
 			exePath: func() (string, error) { return exe, nil }}
 		st := u.check()
 		got, _ := os.ReadFile(exe)
