@@ -2,6 +2,7 @@
 //
 //	go run ./tools/signer keygen            -> writes signing.key (KEEP SECRET), prints the public key
 //	go run ./tools/signer sign file.exe     -> writes file.exe.sig next to it
+//	go run ./tools/signer pubkey            -> prints the public key again (for build.ps1)
 //	go run ./tools/signer key amy Amy       -> prints a key for tier "amy" named "Amy"
 //	                                           (tiers: dev, amy, donator) and logs it to issued-keys.txt
 //
@@ -41,6 +42,8 @@ func main() {
 		fmt.Println("Wrote", keyFile, "- back it up somewhere safe and never commit it.")
 		fmt.Println("Public key (put this in build.ps1 as $PubKey):")
 		fmt.Println(base64.StdEncoding.EncodeToString(pub))
+	case "pubkey":
+		fmt.Println(base64.StdEncoding.EncodeToString(loadKey().Public().(ed25519.PublicKey)))
 	case "key":
 		if len(os.Args) < 3 {
 			usage()
@@ -97,7 +100,9 @@ func loadKey() ed25519.PrivateKey {
 	return ed25519.PrivateKey(k)
 }
 
-func usage() { die("usage: signer keygen | signer sign <file>... | signer key <tier> [name]") }
+func usage() {
+	die("usage: signer keygen | signer pubkey | signer sign <file>... | signer key <tier> [name]")
+}
 
 func die(msg string) {
 	fmt.Fprintln(os.Stderr, msg)

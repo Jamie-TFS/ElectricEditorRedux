@@ -15,6 +15,7 @@ import (
 const (
 	vecParamStride = 48 // FMaterialParameterInfo(16) + FLinearColor(16) + FGuid(16)
 	micClass       = "MaterialInstanceConstant"
+	midClass       = "MaterialInstanceDynamic"
 )
 
 type VectorParam struct {
@@ -24,10 +25,11 @@ type VectorParam struct {
 }
 
 type Material struct {
-	Path   string        `json:"path"`
-	Parent string        `json:"parent"`
-	Params []VectorParam `json:"params"`
-	obj    uint64
+	Dynamic bool          `json:"dynamic"` // a MaterialInstanceDynamic made at runtime
+	Path    string        `json:"path"`
+	Parent  string        `json:"parent"`
+	Params  []VectorParam `json:"params"`
+	obj     uint64
 }
 
 // vectorParams finds the VectorParameterValues array inside a material
@@ -97,7 +99,7 @@ func (s *Session) parent(obj uint64) string {
 			continue
 		}
 		switch s.o.className(ptr) {
-		case "Material", micClass:
+		case "Material", micClass, midClass:
 			return s.o.path(ptr)
 		}
 	}
@@ -120,7 +122,11 @@ func (s *Session) Materials(words []string) []Material {
 	num := s.o.count()
 	for i := 0; i < num; i++ {
 		obj := s.o.item(i)
-		if obj == 0 || s.o.className(obj) != micClass {
+		if obj == 0 {
+			continue
+		}
+		cls := s.o.className(obj)
+		if cls != micClass && cls != midClass {
 			continue
 		}
 		path := s.o.path(obj)
@@ -131,7 +137,7 @@ func (s *Session) Materials(words []string) []Material {
 		if !match(path) && !match(parent) {
 			continue
 		}
-		out = append(out, Material{Path: path, Parent: parent, Params: s.vectorParams(obj), obj: obj})
+		out = append(out, Material{Dynamic: cls == midClass, Path: path, Parent: parent, Params: s.vectorParams(obj), obj: obj})
 	}
 	return out
 }

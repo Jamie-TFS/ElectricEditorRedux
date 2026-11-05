@@ -39,24 +39,21 @@ type Engine struct {
 	mu      sync.Mutex
 	sess    *game.Session
 	status  Status
+	exe     string              // running game's exe path (for finding Paks)
 	tracked map[string]*tracked // curves of the current Tekken session
 	nextTry time.Time
 	dumpReq chan chan dumpResult
 
-	trailReq   chan trailRequest
-	trailSaved map[string][4]float32 // original colours while the trail test is on
-}
+	jobs chan func()
 
-type trailRequest struct {
-	on    bool
-	reply chan dumpResult
+	// effect finder, live mode: curve path -> test colour, and the
+	// originals of every curve it has written
+	finderLive map[string]string
+	finderTrk  map[string]*tracked
 }
 
 // words that pick out trail / swipe materials (own path or parent path)
 var trailWords = []string{"trail", "_tl", "blade", "slash", "claw", "swing"}
-
-// colour parameters a trail material uses
-var trailColorParams = map[string]bool{"basetexcolor": true, "basetex2color": true, "edgecolor": true, "color": true}
 
 // tracked remembers a curve's untouched colours for one Tekken session, so
 // "Game colours" can unhook exactly. Keyed to the object's address: when the
@@ -79,13 +76,13 @@ type dumpResult struct {
 
 func NewEngine(s *store.Store) *Engine {
 	e := &Engine{
-		store:    s,
-		parts:    fx.AllParts(),
-		wake:     make(chan struct{}, 1),
-		tracked:  map[string]*tracked{},
-		dumpReq:  make(chan chan dumpResult),
-		trailReq: make(chan trailRequest),
-		status:   Status{State: "waiting", Message: "Start Tekken 8 and this will connect on its own.", Loaded: map[string]bool{}},
+		store:   s,
+		parts:   fx.AllParts(),
+		wake:    make(chan struct{}, 1),
+		tracked: map[string]*tracked{},
+		dumpReq: make(chan chan dumpResult),
+		jobs:    make(chan func()),
+		status:  Status{State: "waiting", Message: "Start Tekken 8 and this will connect on its own.", Loaded: map[string]bool{}},
 	}
 	return e
 }
@@ -104,8 +101,8 @@ func (e *Engine) Start(ctx context.Context) {
 			case reply := <-e.dumpReq:
 				reply <- e.dump()
 				continue
-			case req := <-e.trailReq:
-				req.reply <- e.trailTest(req.on)
+			case fn := <-e.jobs:
+				fn()
 				continue
 			}
 			e.tick()
@@ -174,6 +171,9 @@ func (e *Engine) tick() {
 		}
 		e.sess = sess
 		e.tracked = loadSession(sess.PID())
+		e.mu.Lock()
+		e.exe = sess.ExePath()
+		e.mu.Unlock()
 	}
 
 	if !e.sess.Alive() {
@@ -183,10 +183,18 @@ func (e *Engine) tick() {
 	}
 	e.sess.MaybeRescan()
 
-	loaded, applied, dirty := syncCurves(e.sess, e.parts, e.store.Active(), e.tracked)
+	loaded, applied, dirty := syncCurves(e.sess, partsWithout(e.parts, e.finderLive), e.store.Active(), e.tracked)
+	if l2, a2, d2 := syncRGB(e.sess, e.parts, e.store.Active(), e.tracked); d2 || a2 > 0 || len(l2) > 0 {
+		for k := range l2 {
+			loaded[k] = true
+		}
+		applied += a2
+		dirty = dirty || d2
+	}
 	if dirty {
 		saveSession(e.sess.PID(), e.tracked)
 	}
+	e.applyFinder()
 
 	msg := "Connected. Load a match to see effects here."
 	if len(loaded) > 0 {
@@ -196,7 +204,34 @@ func (e *Engine) tick() {
 		Curves: e.sess.CurveCount(), Loaded: loaded, Applied: applied})
 }
 
+// Running reports whether Tekken is open (connected).
+func (e *Engine) Running() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.status.State == "connected"
+}
+
+// ExePath is the last seen Tekken exe path ("" if never connected).
+func (e *Engine) ExePath() string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.exe
+}
+
+// do runs fn on the engine goroutine (where the game session lives).
+func (e *Engine) do(fn func()) error {
+	done := make(chan struct{})
+	select {
+	case e.jobs <- func() { defer close(done); fn() }:
+	case <-time.After(5 * time.Second):
+		return errors.New("the app is busy, try again")
+	}
+	<-done
+	return nil
+}
+
 func (e *Engine) dropSession() {
+	e.finderTrk = nil // addresses are only valid for one Tekken process
 	if e.sess != nil {
 		e.sess.Close()
 		e.sess = nil
@@ -249,6 +284,14 @@ func (e *Engine) dump() dumpResult {
 		for _, p := range part.Paths {
 			known[p] = key
 		}
+		for _, ch := range part.RGB {
+			for _, p := range ch {
+				known[p] = key
+			}
+		}
+		for _, p := range part.Vec {
+			known[p] = key
+		}
 	}
 	paths := make([]string, 0, len(list))
 	for p := range list {
@@ -262,11 +305,29 @@ func (e *Engine) dump() dumpResult {
 		if k, ok := known[p]; ok {
 			tag = "  [" + k + "]"
 		}
+		if e.sess.IsFloat(p) {
+			if strings.Contains(p, "VectorCurve") {
+				tag += "  [vector]"
+			} else {
+				tag += "  [float]"
+			}
+			if v, err := e.sess.Read(p); err == nil && len(v) > 0 {
+				lo, hi := v[0], v[0]
+				for _, x := range v {
+					lo, hi = min(lo, x), max(hi, x)
+				}
+				tag += fmt.Sprintf(" %.3g..%.3g", lo, hi)
+			}
+		}
 		fmt.Fprintf(&b, "%s | %d%s\n", p, list[p], tag)
 	}
 	b.WriteString("\n--- trail, claw and slash materials (for finding claw colours) ---\n\n")
 	for _, m := range e.sess.Materials(trailWords) {
-		fmt.Fprintf(&b, "%s\n    parent: %s\n", m.Path, m.Parent)
+		kind := ""
+		if m.Dynamic {
+			kind = "[runtime MID] "
+		}
+		fmt.Fprintf(&b, "%s%s\n    parent: %s\n", kind, m.Path, m.Parent)
 		for _, p := range m.Params {
 			fmt.Fprintf(&b, "    %-20s %.3f, %.3f, %.3f, %.3f\n", p.Name, p.Value[0], p.Value[1], p.Value[2], p.Value[3])
 		}
@@ -299,7 +360,11 @@ func syncCurves(io curveIO, parts map[string]fx.Part, profile store.Profile, trk
 		if !ok {
 			setting = fx.Setting{Mode: "native"}
 		}
-		for _, path := range part.Paths {
+		paths, vec := part.Paths, false
+		if len(part.Vec) > 0 {
+			paths, vec = part.Vec, true
+		}
+		for _, path := range paths {
 			if !io.Loaded(path) {
 				continue
 			}
@@ -323,7 +388,12 @@ func syncCurves(io curveIO, parts map[string]fx.Part, profile store.Profile, trk
 				}
 				continue
 			}
-			want := fx.Render(tr.Orig, setting)
+			var want []float32
+			if vec {
+				want = fx.RenderVec(tr.Orig, setting)
+			} else {
+				want = fx.Render(tr.Orig, setting)
+			}
 			if !fx.Same(cur, want) && io.Write(path, want) != nil {
 				continue
 			}
@@ -337,53 +407,88 @@ func syncCurves(io curveIO, parts map[string]fx.Part, profile store.Profile, trk
 	return loaded, applied, dirty
 }
 
-// TrailTest turns every loaded trail material's colours green in memory (on)
-// or puts them back (off). It answers one question: does Tekken's trail
-// renderer pick up live material changes? If yes, claws can be recoloured
-// live like the electrics; if not, they need a pak.
-func (e *Engine) TrailTest(on bool) (int, error) {
-	reply := make(chan dumpResult, 1)
-	select {
-	case e.trailReq <- trailRequest{on: on, reply: reply}:
-	case <-time.After(3 * time.Second):
-		return 0, errors.New("the app is busy, try again")
-	}
-	r := <-reply
-	n := 0
-	fmt.Sscan(r.path, &n)
-	return n, r.err
-}
-
-func (e *Engine) trailTest(on bool) dumpResult {
-	if e.sess == nil {
-		return dumpResult{err: errors.New("connect to Tekken first, then load a match")}
-	}
-	if on && e.trailSaved == nil {
-		e.trailSaved = map[string][4]float32{}
-	}
-	n := 0
-	for _, m := range e.sess.Materials(trailWords) {
-		for _, p := range m.Params {
-			if !trailColorParams[strings.ToLower(p.Name)] {
+// syncRGB handles parts whose colour lives in three float curves (one per
+// channel). Same rules as syncCurves: native restores once, then never
+// touches; a colour is rewritten whenever the game's value differs.
+func syncRGB(io curveIO, parts map[string]fx.Part, profile store.Profile, trk map[string]*tracked) (loaded map[string]bool, applied int, dirty bool) {
+	loaded = map[string]bool{}
+	for key, part := range parts {
+		if len(part.RGB[0]) == 0 {
+			continue
+		}
+		setting, ok := profile[key]
+		if !ok {
+			setting = fx.Setting{Mode: "native"}
+		}
+		// every copy index k is one independent set of curves (e.g. CPU/GPU)
+		for k := range part.RGB[0] {
+			var paths [3]string
+			var cur [3][]float32
+			var orig [3][]float32
+			var lens [3]int
+			okAll := true
+			for ch := 0; ch < 3; ch++ {
+				if k >= len(part.RGB[ch]) {
+					okAll = false
+					break
+				}
+				p := part.RGB[ch][k]
+				paths[ch] = p
+				if !io.Loaded(p) {
+					okAll = false
+					break
+				}
+				v, err := io.Read(p)
+				if err != nil {
+					okAll = false
+					break
+				}
+				cur[ch] = v
+				lens[ch] = len(v)
+				addr := io.Addr(p)
+				tr := trk[p]
+				if tr == nil || tr.Addr != addr || len(tr.Orig) != len(v) {
+					tr = &tracked{Addr: addr, Orig: v}
+					trk[p] = tr
+					dirty = true
+				}
+				orig[ch] = tr.Orig
+			}
+			if !okAll {
 				continue
 			}
-			key := m.Path + "|" + p.Name
-			if on {
-				if _, ok := e.trailSaved[key]; !ok {
-					e.trailSaved[key] = p.Value
+			loaded[key] = true
+			if setting.Mode == "native" {
+				for ch := 0; ch < 3; ch++ {
+					if tr := trk[paths[ch]]; tr.Written && io.Write(paths[ch], tr.Orig) == nil {
+						tr.Written = false
+						dirty = true
+					}
 				}
-				if e.sess.SetVector(p, [4]float32{0, 1, 0, p.Value[3]}) == nil {
-					n++
-				}
-			} else if orig, ok := e.trailSaved[key]; ok {
-				if e.sess.SetVector(p, orig) == nil {
-					n++
+				continue
+			}
+			want := fx.RenderRGB(orig, lens, setting)
+			for ch := 0; ch < 3; ch++ {
+				if sc := part.RGBScale[ch]; sc != 0 && want[ch] != nil {
+					for i := range want[ch] {
+						want[ch][i] *= sc
+					}
 				}
 			}
+			for ch := 0; ch < 3; ch++ {
+				if want[ch] == nil || (ch > 0 && paths[ch] == paths[ch-1]) {
+					continue // a channel sharing the previous one's curve takes its value
+				}
+				if !fx.Same(cur[ch], want[ch]) && io.Write(paths[ch], want[ch]) != nil {
+					continue
+				}
+				if tr := trk[paths[ch]]; !tr.Written {
+					tr.Written = true
+					dirty = true
+				}
+			}
+			applied++
 		}
 	}
-	if !on {
-		e.trailSaved = nil
-	}
-	return dumpResult{path: fmt.Sprint(n)}
+	return loaded, applied, dirty
 }

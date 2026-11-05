@@ -12,7 +12,7 @@ export interface Setting {
   keepFade: boolean;
 }
 export interface Part { id: string; label: string; role: "core" | "glow" | "outer" | "trail" }
-export interface Effect { id: string; label: string; parts: Part[] }
+export interface Effect { id: string; label: string; kind?: "pak" | "rgb"; note?: string; parts: Part[] }
 export interface Character { id: string; name: string; effects: Effect[] }
 export interface State { active: string; profiles: string[]; parts: Record<string, Setting> }
 export interface Status {
@@ -26,7 +26,13 @@ export interface Status {
 
 export interface Edition {
   tier: string; title: string; theme: string; channel: string; devTools: boolean;
-  badge: string; greeting: string; keyName: string; keysOn: boolean; version: string;
+  badge: string; greeting: string; keyName: string; keysOn: boolean; version: string; locked: boolean;
+}
+export interface PakStatus { state: "off" | "building" | "pending" | "ready" | "error" | "nogame"; message: string }
+export interface FinderEntry { color: string; colorName: string; name: string; detail: string }
+export interface FinderView {
+  active: boolean; kind: "live" | "pak"; scope: string; round: number; total: number;
+  entries: FinderEntry[] | null; colors: FinderEntry[] | null; done: boolean; pak: PakStatus; legend: string;
 }
 export interface UpdateStatus { state: "disabled" | "checking" | "current" | "ready" | "error"; version: string; message: string }
 
@@ -51,7 +57,17 @@ interface Backend {
   DeleteProfile(): Promise<State>;
   ExportCode(charID: string): Promise<string>;
   DumpCurves(): Promise<string>;
-  TrailTest(on: boolean): Promise<number>;
+  PakStatus(): Promise<PakStatus>;
+  FinderView(): Promise<FinderView>;
+  FinderStart(kind: string, scope: string): Promise<FinderView>;
+  FinderPick(hex: string): Promise<FinderView>;
+  FinderBack(): Promise<FinderView>;
+  FinderStop(): Promise<FinderView>;
+  OpenFinderLegend(): Promise<void>;
+  ExportAssets(filters: string): Promise<string>;
+  BuildTestMod(text: string): Promise<PakStatus>;
+  TestModStatus(): Promise<PakStatus>;
+  OpenPakFolder(): Promise<void>;
   ImportCode(code: string): Promise<{ state: State; count: number }>;
 }
 
@@ -73,8 +89,9 @@ function mockEdition(tier: string): Edition {
     dev: { title: "Electric Editor dev", theme: "storm", devTools: true, badge: "Dev", channel: "beta", keyName: "Jamie" },
     amy: { title: "Amy's Electric Editor", theme: "amy", greeting: "Hi Amy", keyName: "Amy" },
   };
+  const beta = new URLSearchParams(location.search).get("beta") !== null;
   return { tier, title: "", theme: "storm", channel: "stable", devTools: false, badge: "", greeting: "", keyName: "",
-    keysOn: true, version: "1.0.0", ...t[tier] } as Edition;
+    keysOn: true, version: beta ? "1.1.0-beta.2" : "1.0.0", locked: beta && !tier, ...t[tier] } as Edition;
 }
 
 function makeMock(): Backend {
@@ -98,6 +115,21 @@ function makeMock(): Backend {
     if (c.id === "deviljin") for (const e of c.effects) for (const p of e.parts) loaded[`${c.id}.${e.id}.${p.id}`] = true;
   }
   const params = new URLSearchParams(location.search);
+  const pal = [["#ff1a1a", "Red"], ["#1aff3c", "Green"], ["#1a5cff", "Blue"], ["#ffe81a", "Yellow"],
+    ["#1af0ff", "Cyan"], ["#ff1aff", "Magenta"], ["#ff8a00", "Orange"], ["#ffffff", "White"]];
+  let fItems: string[] = [];
+  let fHist: number[][] = [];
+  let fKind: "live" | "pak" = "live";
+  let fScope = "";
+  const fView = (): FinderView => {
+    if (!fHist.length) return { active: false } as FinderView;
+    const cur = fHist[fHist.length - 1];
+    const entries = cur.map((i, j) => ({ color: pal[j % 8][0], colorName: pal[j % 8][1], name: fItems[i], detail: `/Game/Effect/Polariswork/Character/swl/${fItems[i]}` }));
+    const colors = pal.map(([color, colorName], k) => ({ color, colorName, name: String(cur.filter((_, j) => j % 8 === k).length), detail: "" })).filter((c) => c.name !== "0");
+    return { active: true, kind: fKind, scope: fScope, round: fHist.length, total: fItems.length, entries, colors,
+      done: cur.length <= 8, legend: "C:\\Users\\you\\AppData\\Roaming\\ElectricEditor\\finder.txt",
+      pak: fKind === "pak" ? { state: "ready", message: "Test colours installed. Restart Tekken, do the move, then pick the colour you see." } : { state: "off", message: "" } };
+  };
   return {
     Edition: async () => mockEdition(params.get("key") ?? ""),
     ActivateKey: async (k: string) => {
@@ -129,7 +161,30 @@ function makeMock(): Backend {
       if (Object.keys(profiles).length < 2) throw "you need at least one profile";
       delete profiles[active]; active = Object.keys(profiles).sort()[0]; return state();
     },
-    TrailTest: async () => 6,
+    PakStatus: async () => {
+      const pak = new Set((mockCatalog as Character[]).flatMap((c) => c.effects.filter((e) => e.kind === "pak").map((e) => `${c.id}.${e.id}.`)));
+      const on = Object.entries(profiles[active]).some(([k, v]) => v.mode !== "native" && [...pak].some((p) => k.startsWith(p)));
+      return on ? { state: "ready", message: "Mod colours installed. They show next time you start Tekken." } : { state: "off", message: "" };
+    },
+    OpenPakFolder: async () => {},
+    FinderView: async () => fView(),
+    FinderStart: async (kind, scope) => {
+      fKind = kind as "live" | "pak"; fScope = scope;
+      fItems = Array.from({ length: 37 }, (_, i) => kind === "live" ? `NS_EF_Swl_Effect${i} · Emitter_${i % 4} · ColorCurve_0` : `MI_EF_Swl_Material${String(i).padStart(2, "0")}`);
+      fHist = [fItems.map((_, i) => i)];
+      return fView();
+    },
+    FinderPick: async (hex) => {
+      const cur = fHist[fHist.length - 1];
+      fHist.push(cur.filter((_, j) => pal[j % 8][0] === hex));
+      return fView();
+    },
+    FinderBack: async () => { if (fHist.length > 1) fHist.pop(); return fView(); },
+    FinderStop: async () => { fHist = []; return fView(); },
+    OpenFinderLegend: async () => {},
+    ExportAssets: async () => "Saved 23 files to research.zip",
+    BuildTestMod: async (t) => t.trim() ? { state: "ready", message: "Test mod installed. Restart Tekken to try it." } : { state: "off", message: "No test mod installed." },
+    TestModStatus: async () => ({ state: "off", message: "No test mod installed." }),
     DumpCurves: async () => "C:\\Users\\you\\AppData\\Roaming\\ElectricEditor\\curves.txt",
     ExportCode: async () => "EE1.jVLNbtswDH6XnBVAP7YT59bTMDSXrAN2KHxQZFoholeZ1mQmx98-Sko3YNg6v4oGjQ0MjhkE0j4",
     ImportCode: async () => ({ state: state(), count: 3 }),
@@ -147,6 +202,13 @@ export function onEdition(cb: (e: Edition) => void): void {
 export function onUpdate(cb: (s: UpdateStatus) => void): void {
   if (isApp() && window.runtime) window.runtime.EventsOn("update", (s) => cb(s as UpdateStatus));
   api.UpdateStatus().then(cb).catch(() => {});
+}
+
+export function onPak(cb: (s: PakStatus) => void): void {
+  if (isApp() && window.runtime) window.runtime.EventsOn("pak", (s) => cb(s as PakStatus));
+  const poll = async () => { try { cb(await api.PakStatus()); } catch { /* ignore */ } };
+  poll();
+  setInterval(poll, 2000);
 }
 
 export function onStatus(cb: (s: Status) => void): void {

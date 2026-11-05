@@ -28,6 +28,57 @@
             "role": "outer"
           }
         ]
+      },
+      {
+        "id": "devil",
+        "label": "Devil shockwaves",
+        "kind": "pak",
+        "note": "Kazuya's devil shockwaves.",
+        "parts": [
+          {
+            "id": "b12",
+            "label": "b1,2 / df3+4,1,2",
+            "role": "glow"
+          },
+          {
+            "id": "heat",
+            "label": "Heat db3+4",
+            "role": "core"
+          },
+          {
+            "id": "ff2",
+            "label": "f,f2",
+            "role": "outer"
+          }
+        ]
+      },
+      {
+        "id": "beam",
+        "label": "Beam",
+        "kind": "pak",
+        "note": "Kazuya's eye beam: the beam, its lightning, fire and glow. White highlights stay white.",
+        "parts": [
+          {
+            "id": "main",
+            "label": "Beam",
+            "role": "core"
+          },
+          {
+            "id": "beaml",
+            "label": "Beam L",
+            "role": "glow"
+          },
+          {
+            "id": "beamn",
+            "label": "Beam N",
+            "role": "outer"
+          },
+          {
+            "id": "charge",
+            "label": "Charge-up",
+            "role": "trail"
+          }
+        ]
       }
     ]
   },
@@ -60,6 +111,19 @@
             "role": "glow"
           }
         ]
+      },
+      {
+        "id": "trails",
+        "label": "Trails",
+        "kind": "pak",
+        "note": "The blade trail on d2, d/f2 and d/f2,1+2.",
+        "parts": [
+          {
+            "id": "blade",
+            "label": "Blade trail",
+            "role": "trail"
+          }
+        ]
       }
     ]
   },
@@ -90,6 +154,128 @@
             "id": "lightning2",
             "label": "Lightning 2",
             "role": "glow"
+          }
+        ]
+      },
+      {
+        "id": "claws",
+        "label": "Claw trails",
+        "kind": "pak",
+        "note": "Claw swipes on WS2, MCR1, MCR 2,2, Rage slash and 1,1,2.",
+        "parts": [
+          {
+            "id": "ws2",
+            "label": "WS2 claws",
+            "role": "trail"
+          },
+          {
+            "id": "swipe",
+            "label": "Claw swipe",
+            "role": "trail"
+          },
+          {
+            "id": "swipe2",
+            "label": "Claw swipe 2",
+            "role": "trail"
+          },
+          {
+            "id": "trail2",
+            "label": "Trail 2",
+            "role": "trail"
+          },
+          {
+            "id": "single",
+            "label": "Single trail",
+            "role": "trail"
+          },
+          {
+            "id": "edge",
+            "label": "Single trail edge",
+            "role": "trail"
+          }
+        ]
+      },
+      {
+        "id": "beam",
+        "label": "Beam",
+        "kind": "pak",
+        "note": "The eye beam: the beam line, its lightning and the glow inside it.",
+        "parts": [
+          {
+            "id": "lightning",
+            "label": "Lightning",
+            "role": "core"
+          },
+          {
+            "id": "main",
+            "label": "Beam",
+            "role": "core"
+          },
+          {
+            "id": "glow",
+            "label": "Glow",
+            "role": "glow"
+          }
+        ]
+      },
+      {
+        "id": "aura",
+        "label": "MCR3",
+        "kind": "pak",
+        "note": "The devil aura and chains on MCR3.",
+        "parts": [
+          {
+            "id": "main",
+            "label": "Aura",
+            "role": "glow"
+          },
+          {
+            "id": "fire",
+            "label": "Fire",
+            "role": "outer"
+          },
+          {
+            "id": "chains",
+            "label": "Chain glow",
+            "role": "core"
+          }
+        ]
+      },
+      {
+        "id": "chains",
+        "label": "Chains",
+        "kind": "pak",
+        "note": "The chains on U1, UF1 and b,f1+2. Shared with Jin, so his change too.",
+        "parts": [
+          {
+            "id": "main",
+            "label": "U1 chain",
+            "role": "core"
+          },
+          {
+            "id": "chain5",
+            "label": "UF1 chain",
+            "role": "core"
+          },
+          {
+            "id": "chain1",
+            "label": "b,f1+2 chain",
+            "role": "core"
+          },
+          {
+            "id": "wrap",
+            "label": "Chain wrap",
+            "role": "glow"
+          },
+          {
+            "id": "small",
+            "label": "Small links",
+            "role": "outer"
+          },
+          {
+            "id": "aura",
+            "label": "Chain aura",
+            "role": "trail"
           }
         ]
       }
@@ -148,6 +334,17 @@
             "id": "outer2",
             "label": "Outer arc 2",
             "role": "outer"
+          }
+        ]
+      },
+      {
+        "id": "cd14",
+        "label": "CD1,4",
+        "parts": [
+          {
+            "id": "trail",
+            "label": "Lightning trail",
+            "role": "core"
           }
         ]
       }

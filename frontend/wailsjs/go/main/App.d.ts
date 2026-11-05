@@ -7,6 +7,8 @@ export function ActivateKey(arg1:string):Promise<main.Edition>;
 
 export function Background():Promise<string>;
 
+export function BuildTestMod(arg1:string):Promise<main.PakStatus>;
+
 export function Catalog():Promise<Array<fx.Character>>;
 
 export function ChooseBackground():Promise<string>;
@@ -23,9 +25,27 @@ export function DumpCurves():Promise<string>;
 
 export function Edition():Promise<main.Edition>;
 
+export function ExportAssets(arg1:string):Promise<string>;
+
 export function ExportCode(arg1:string):Promise<string>;
 
+export function FinderBack():Promise<main.FinderView>;
+
+export function FinderPick(arg1:string):Promise<main.FinderView>;
+
+export function FinderStart(arg1:string,arg2:string):Promise<main.FinderView>;
+
+export function FinderStop():Promise<main.FinderView>;
+
+export function FinderView():Promise<main.FinderView>;
+
 export function ImportCode(arg1:string):Promise<main.ImportResult>;
+
+export function OpenFinderLegend():Promise<void>;
+
+export function OpenPakFolder():Promise<void>;
+
+export function PakStatus():Promise<main.PakStatus>;
 
 export function RemoveKey():Promise<main.Edition>;
 
@@ -43,6 +63,6 @@ export function Status():Promise<main.Status>;
 
 export function SwitchProfile(arg1:string):Promise<main.State>;
 
-export function TrailTest(arg1:boolean):Promise<number>;
+export function TestModStatus():Promise<main.PakStatus>;
 
 export function UpdateStatus():Promise<main.UpdateStatus>;

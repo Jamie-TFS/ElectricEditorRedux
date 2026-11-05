@@ -45,6 +45,7 @@ There's one download, `ElectricEditor.exe`. Keys unlock extras (Manage → Enter
 | none | everything a regular user needs |
 | `donator` | a Supporter badge (more perks can hang off this later) |
 | `dev` | research tools in the Manage menu, and pre-release updates |
+| `amy` | Amy's theme and greeting |
 
 A key is signed with the maintainer's private key, so it can't be forged. To
 turn off a leaked key, add its ID to `revoked.txt` in this repo; the app checks
@@ -56,7 +57,7 @@ and offers a restart. Unsigned or wrongly signed files are refused.
 
 Maintainer setup (once, in this folder):
 
-1. `go run ./tools/signer keygen`, paste the printed public key into `build.ps1`,
+1. `go run ./tools/signer keygen`, (build.ps1 reads the public key from `signing.key` itself),
    and back up `signing.key` (git-ignored; losing it means installed copies can't update).
 
 Making keys:
@@ -98,3 +99,23 @@ Layout:
 - `frontend/` – TypeScript UI (bolt preview, colour picker, gradient editor)
 
 Adding a fighter or effect means adding its curve paths to `internal/fx/catalog.go`.
+
+## Claw trail colours (mod pak)
+
+Some effects (Devil Jin's claw trails) are materials, which Tekken won't
+recolour live. For those the app builds a small mod in
+`Polaris\Content\Paks\mods\ElectricEditor_P.*`:
+
+1. the original materials are extracted once with retoc (`to-legacy`), cached
+   in `%APPDATA%\ElectricEditor\pak\original` and re-extracted after a game update
+2. their colour parameters are patched in Go (`internal/pak/legacy.go`)
+3. retoc `to-zen --version UE5_2` packs them, and the files are copied to `mods`
+
+Setting every claw layer back to "Game colours" deletes the mod. If Tekken has
+the files open, the change is applied as soon as it closes. Logs are in
+`%APPDATA%\ElectricEditor\pak\log.txt`.
+
+## Credits
+
+Bundles [retoc](https://github.com/trumank/retoc) by Truman Kilen and
+Archengius (MIT licence, see `internal/pak/RETOC_LICENSE.txt`).

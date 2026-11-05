@@ -389,3 +389,69 @@ body[data-theme="amy"] .fighter-name { letter-spacing: -0.02em; }
 body[data-theme="amy"] .strip-native {
   background: repeating-linear-gradient(135deg, transparent 0 7px, rgba(255, 95, 174, .06) 7px 14px);
 }
+
+/* ---- material effects baked into a mod pak (claw trails) */
+.cap-pak { display: none; }
+body.pak .cap-pak { display: block; }
+body.pak .cap-live, body.pak .live-only { display: none; }
+.cap-pak code { font-size: 11px; background: var(--bg-deep); padding: 1px 5px; border-radius: 4px; }
+.effect-note { color: var(--text); font-weight: 600; }
+
+.pak-banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--r-md);
+  background: var(--bg-deep); border: 1px solid var(--line-2); font-size: 13px; }
+.pak-banner[hidden] { display: none; }
+.pak-banner .pak-text { flex: 1; }
+.pak-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.pak-banner[data-state="ready"] .pak-dot { background: #3ddc84; }
+.pak-banner[data-state="building"] .pak-dot { background: var(--accent); animation: pak-pulse 1s ease-in-out infinite; }
+.pak-banner[data-state="pending"] .pak-dot, .pak-banner[data-state="nogame"] .pak-dot { background: #ffc94a; }
+.pak-banner[data-state="error"] { border-color: #ff5a6e; }
+.pak-banner[data-state="error"] .pak-dot { background: #ff5a6e; }
+@keyframes pak-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .pak-banner[data-state="building"] .pak-dot { animation: none; } }
+
+/* ---- effect finder (dev) */
+#finder-dlg { width: min(720px, 92vw); }
+.finder-top { display: flex; align-items: center; justify-content: space-between; }
+.finder .field[hidden] { display: none; }
+.finder .field { display: grid; gap: 6px; font-weight: 600; }
+.finder .field select, .finder .field input { padding: 9px 10px; }
+.finder-kind label { display: flex; gap: 10px; align-items: flex-start; }
+.finder-round { font-weight: 700; }
+.finder-pak { padding: 8px 12px; border-radius: var(--r-md); background: var(--bg-deep); font-size: 13px; }
+.finder-pak[hidden] { display: none; }
+.finder-pak[data-state="error"] { color: #ff8a96; }
+.finder-colors { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.finder-color { display: flex; align-items: center; gap: 8px; padding: 10px; border-radius: var(--r-md);
+  background: var(--bg-deep); border: 1px solid var(--line-2); color: var(--text); font-weight: 600; text-align: left; }
+.finder-color:hover:not(:disabled) { border-color: var(--accent); }
+.finder-color i { width: 18px; height: 18px; border-radius: 50%; flex: none; box-shadow: 0 0 10px currentColor; }
+.finder-color small { margin-left: auto; color: var(--muted); font-weight: 400; }
+.finder-legend { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; max-height: 260px; overflow: auto; }
+.finder-legend[hidden] { display: none; }
+.finder-legend li { display: grid; grid-template-columns: 14px 70px 1fr; column-gap: 10px; align-items: center; font-size: 13px; }
+.finder-legend i { width: 14px; height: 14px; border-radius: 50%; }
+.finder-legend small { grid-column: 3; color: var(--muted); font-size: 11px; word-break: break-all; }
+.small-note { font-size: 12px; }
+
+/* ---- Electrics / Mod effects tabs */
+.sections { display: flex; gap: 2px; padding: 4px; border-radius: var(--r-md); background: var(--bg-deep); margin-left: 12px; }
+.sections button { background: none; border: 0; padding: 7px 14px; border-radius: var(--r-sm); color: var(--muted); font-weight: 600; display: flex; align-items: baseline; gap: 6px; }
+.sections button small { font-weight: 400; font-size: 11px; opacity: .75; }
+.sections button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+
+/* ---- supporter beta lock */
+.lock { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px;
+  background: color-mix(in srgb, var(--bg-deep) 92%, transparent); backdrop-filter: blur(8px); }
+.lock[hidden] { display: none; }
+.lock-card { width: min(440px, 100%); display: grid; gap: 12px; padding: 28px; border-radius: var(--r-lg, 16px);
+  background: var(--panel, var(--bg)); border: 1px solid var(--line-2); box-shadow: 0 20px 60px rgba(0,0,0,.45); }
+.lock-card h1 { margin: 0; font-family: Unbounded, sans-serif; font-size: 26px; }
+.lock-card p { margin: 0; line-height: 1.5; }
+.lock-card .mark { width: 28px; height: 28px; }
+.lock-card textarea { width: 100%; resize: none; font-family: ui-monospace, monospace; font-size: 12px; }
+.lock-version { font-size: 11px; color: var(--muted); text-align: center; }
+
+/* live float-curve colour: simple editor, but it's live (no restart note) */
+body.pak.rgb .cap-pak { display: none; }
+body.pak.rgb .cap-live { display: block; }

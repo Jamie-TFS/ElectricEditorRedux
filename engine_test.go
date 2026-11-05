@@ -80,3 +80,11 @@ func TestReloadedCurveTakesFreshOriginal(t *testing.T) {
 		t.Fatalf("reload not detected: %+v", trk[path])
 	}
 }
+
+func TestIsBeta(t *testing.T) {
+	for v, want := range map[string]bool{"1.1.0-beta.1": true, "1.1.0-preview": true, "1.1.0": false, "dev": false} {
+		if isBeta(v) != want {
+			t.Errorf("isBeta(%q) = %v", v, !want)
+		}
+	}
+}

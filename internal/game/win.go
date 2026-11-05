@@ -65,6 +65,7 @@ type Process struct {
 	h          syscall.Handle
 	PID        uint32
 	Name       string
+	ExePath    string
 	base, size uint64
 }
 
@@ -119,7 +120,7 @@ func Attach() (*Process, error) {
 		syscall.CloseHandle(h)
 		return nil, fmt.Errorf("Module32FirstW: %v", e)
 	}
-	return &Process{h: h, PID: pid, Name: name, base: uint64(me.ModBaseAddr), size: uint64(me.ModBaseSize)}, nil
+	return &Process{h: h, PID: pid, Name: name, ExePath: utf16z(me.SzExePath[:]), base: uint64(me.ModBaseAddr), size: uint64(me.ModBaseSize)}, nil
 }
 
 func (p *Process) Close() { syscall.CloseHandle(p.h) }

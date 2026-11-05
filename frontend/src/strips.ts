@@ -5,7 +5,7 @@ import { colorAt } from "./color";
 // across the effect's life (left = start, right = fade), tone-mapped the way
 // HDR colour blooms in game, so bright greens read as green, not mud.
 
-export interface Row { key: string; label: string; setting: Setting; focus: boolean; inGame: boolean }
+export interface Row { key: string; label: string; setting: Setting; focus: boolean; inGame: boolean; flat?: boolean }
 
 const SAMPLES = 96;
 
@@ -56,6 +56,7 @@ export class LifeStrips {
       el.querySelector(".strip-name")!.textContent = row.label;
       const dot = el.querySelector<HTMLElement>(".ingame")!;
       dot.classList.toggle("yes", row.inGame);
+      dot.hidden = !!row.flat;
       dot.title = row.inGame ? "Loaded in the game right now" : "Not loaded yet. Pick this fighter in a match and it will apply.";
       const canvas = el.querySelector("canvas")!;
       const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -73,7 +74,9 @@ export class LifeStrips {
       for (let s = 0; s < SAMPLES; s++) {
         const t = s / (SAMPLES - 1);
         const [r, g, b] = colorAt(row.setting, t, "#ffffff");
-        const [dr, dg, db] = display(r * k, g * k, b * k);
+        const [dr, dg, db] = row.flat
+          ? [r, g, b].map((c) => Math.round(Math.min(1, c * row.setting.brightness) * 255))
+          : display(r * k, g * k, b * k);
         ctx.fillStyle = `rgb(${dr},${dg},${db})`;
         ctx.fillRect(Math.floor(s * step), 0, Math.ceil(step) + 1, h);
       }

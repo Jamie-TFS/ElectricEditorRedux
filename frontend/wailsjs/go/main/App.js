@@ -10,6 +10,10 @@ export function Background() {
   return window['go']['main']['App']['Background']();
 }
 
+export function BuildTestMod(arg1) {
+  return window['go']['main']['App']['BuildTestMod'](arg1);
+}
+
 export function Catalog() {
   return window['go']['main']['App']['Catalog']();
 }
@@ -42,12 +46,48 @@ export function Edition() {
   return window['go']['main']['App']['Edition']();
 }
 
+export function ExportAssets(arg1) {
+  return window['go']['main']['App']['ExportAssets'](arg1);
+}
+
 export function ExportCode(arg1) {
   return window['go']['main']['App']['ExportCode'](arg1);
 }
 
+export function FinderBack() {
+  return window['go']['main']['App']['FinderBack']();
+}
+
+export function FinderPick(arg1) {
+  return window['go']['main']['App']['FinderPick'](arg1);
+}
+
+export function FinderStart(arg1, arg2) {
+  return window['go']['main']['App']['FinderStart'](arg1, arg2);
+}
+
+export function FinderStop() {
+  return window['go']['main']['App']['FinderStop']();
+}
+
+export function FinderView() {
+  return window['go']['main']['App']['FinderView']();
+}
+
 export function ImportCode(arg1) {
   return window['go']['main']['App']['ImportCode'](arg1);
+}
+
+export function OpenFinderLegend() {
+  return window['go']['main']['App']['OpenFinderLegend']();
+}
+
+export function OpenPakFolder() {
+  return window['go']['main']['App']['OpenPakFolder']();
+}
+
+export function PakStatus() {
+  return window['go']['main']['App']['PakStatus']();
 }
 
 export function RemoveKey() {
@@ -82,8 +122,8 @@ export function SwitchProfile(arg1) {
   return window['go']['main']['App']['SwitchProfile'](arg1);
 }
 
-export function TrailTest(arg1) {
-  return window['go']['main']['App']['TrailTest'](arg1);
+export function TestModStatus() {
+  return window['go']['main']['App']['TestModStatus']();
 }
 
 export function UpdateStatus() {

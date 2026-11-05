@@ -7,11 +7,20 @@ import (
 	"time"
 )
 
-const colorCurveClass = "NiagaraDataInterfaceColorCurve"
+const (
+	colorCurveClass = "NiagaraDataInterfaceColorCurve"
+	// Float curves share the curve base class, so their ShaderLUT sits at
+	// the same offset. Some effects (DVJ's beam) drive colour through them.
+	floatCurveClass = "NiagaraDataInterfaceCurve"
+	// Vector curves (xyz per sample) carry "Scale RGB" colour multipliers.
+	vectorCurveClass = "NiagaraDataInterfaceVectorCurve"
+)
 
 type curve struct {
-	obj uint64
-	num int
+	obj   uint64
+	num   int
+	float bool // float or vector curve (not RGBA)
+	class string
 }
 
 // Session is a live connection to the game with an index of its colour curves.
@@ -49,6 +58,9 @@ func (s *Session) Close()          { s.p.Close() }
 func (s *Session) Alive() bool     { return s.p.Alive() }
 func (s *Session) Process() string { return s.p.Name }
 
+// ExePath is the full path of the running Polaris exe (finds the game folder).
+func (s *Session) ExePath() string { return s.p.ExePath }
+
 // MaybeRescan re-indexes curves when the object count changes (a match or
 // character loaded) or every 10s as a fallback.
 func (s *Session) MaybeRescan() bool {
@@ -61,11 +73,19 @@ func (s *Session) MaybeRescan() bool {
 
 func (s *Session) Rescan() {
 	num := s.o.count()
-	var objs []uint64
+	var objs, floats, vecs []uint64
 	for i := 0; i < num; i++ {
 		obj := s.o.item(i)
-		if obj != 0 && s.o.className(obj) == colorCurveClass {
+		if obj == 0 {
+			continue
+		}
+		switch s.o.className(obj) {
+		case colorCurveClass:
 			objs = append(objs, obj)
+		case floatCurveClass:
+			floats = append(floats, obj)
+		case vectorCurveClass:
+			vecs = append(vecs, obj)
 		}
 	}
 
@@ -91,6 +111,16 @@ func (s *Session) Rescan() {
 				curves[s.o.path(obj)] = curve{obj: obj, num: int(l.num)}
 			}
 		}
+		for _, obj := range floats {
+			if l, ok := s.flut(obj); ok {
+				curves[s.o.path(obj)] = curve{obj: obj, num: int(l.num), float: true, class: floatCurveClass}
+			}
+		}
+		for _, obj := range vecs {
+			if l, ok := s.flut(obj); ok && l.num%3 == 0 {
+				curves[s.o.path(obj)] = curve{obj: obj, num: int(l.num), float: true, class: vectorCurveClass}
+			}
+		}
 	}
 	s.curves = curves
 	s.lastNum = num
@@ -105,6 +135,26 @@ func (s *Session) lut(obj uint64) (lutRef, bool) {
 	}
 	return lutRef{off: s.lutOff, ptr: ptr, num: num}, true
 }
+
+func (s *Session) flut(obj uint64) (lutRef, bool) {
+	ptr := s.p.u64(obj + s.lutOff)
+	num := int32(s.p.u32(obj + s.lutOff + 8))
+	if !plausiblePtr(ptr) || num < 2 || num > 4096 {
+		return lutRef{}, false
+	}
+	return lutRef{off: s.lutOff, ptr: ptr, num: num}, true
+}
+
+func (s *Session) ref(c curve) (lutRef, bool) {
+	if c.float {
+		return s.flut(c.obj)
+	}
+	return s.lut(c.obj)
+}
+
+// IsFloat reports whether a path is a float curve (one value per sample)
+// rather than an RGBA colour curve.
+func (s *Session) IsFloat(path string) bool { return s.curves[path].float }
 
 // Loaded reports whether a curve path is currently in memory.
 func (s *Session) Loaded(path string) bool {
@@ -136,11 +186,15 @@ func (s *Session) Read(path string) ([]float32, error) {
 	if !ok {
 		return nil, errGone
 	}
-	if s.o.className(c.obj) != colorCurveClass {
+	want := colorCurveClass
+	if c.float {
+		want = c.class
+	}
+	if s.o.className(c.obj) != want {
 		delete(s.curves, path)
 		return nil, errGone
 	}
-	l, ok := s.lut(c.obj)
+	l, ok := s.ref(c)
 	if !ok {
 		return nil, errGone
 	}
@@ -157,7 +211,7 @@ func (s *Session) Write(path string, v []float32) error {
 	if !ok {
 		return errGone
 	}
-	l, ok := s.lut(c.obj)
+	l, ok := s.ref(c)
 	if !ok || int(l.num) != len(v) {
 		return errGone
 	}

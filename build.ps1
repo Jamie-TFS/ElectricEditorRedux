@@ -1,13 +1,13 @@
 # Builds and signs the release exe into .\release
 #
 #   .\build.ps1 1.0.0            (stable release)
-#   .\build.ps1 1.1.0-beta.1     (pre-release: only dev-key users get these)
+#   .\build.ps1 1.1.0-beta.1     (pre-release: only dev and supporter keys get these)
 #
-# One-time setup: go run ./tools/signer keygen, then paste the public key below.
+# Needs signing.key in this folder (go run ./tools/signer keygen, once ever).
+# The public key is worked out from it, so there's nothing to paste in here.
 param([Parameter(Mandatory = $true)][string]$Version)
 
 $ErrorActionPreference = "Stop"
-$PubKey = "852df7xXKKYL1epftM+yHaau56kqsKBc/gpq5N/zQfY="          # <- paste the public key from keygen here
 $Repo = "Jamie-TFS/ElectricEditorRedux"
 
 foreach ($tool in @("go", "node", "npm", "wails")) {
@@ -21,8 +21,12 @@ foreach ($tool in @("go", "node", "npm", "wails")) {
         throw "'$tool' not found. $hint - then close and reopen PowerShell."
     }
 }
-if (-not $PubKey) { throw "Set `$PubKey in build.ps1 first (go run ./tools/signer keygen)." }
 if (-not (Test-Path signing.key)) { throw "signing.key not found in this folder." }
+# signing.key is a base64 ed25519 private key: bytes 32-63 are the public key
+$keyBytes = [Convert]::FromBase64String((Get-Content signing.key -Raw).Trim())
+if ($keyBytes.Length -ne 64) { throw "signing.key doesn't look right (expected 64 bytes)." }
+$PubKey = [Convert]::ToBase64String($keyBytes[32..63])
+Write-Host "Public key: $PubKey"
 
 $out = "release"
 New-Item -ItemType Directory -Force $out | Out-Null

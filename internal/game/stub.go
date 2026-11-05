@@ -15,9 +15,11 @@ func Open() (*Session, error)                     { return nil, ErrNotRunning }
 func (s *Session) Close()                         {}
 func (s *Session) Alive() bool                    { return false }
 func (s *Session) Process() string                { return "" }
+func (s *Session) ExePath() string                { return "" }
 func (s *Session) MaybeRescan() bool              { return false }
 func (s *Session) Rescan()                        {}
 func (s *Session) Loaded(string) bool             { return false }
+func (s *Session) IsFloat(string) bool            { return false }
 func (s *Session) CurveCount() int                { return 0 }
 func (s *Session) PID() uint32                    { return 0 }
 func (s *Session) Addr(string) uint64             { return 0 }
@@ -31,9 +33,10 @@ type VectorParam struct {
 }
 
 type Material struct {
-	Path   string        `json:"path"`
-	Parent string        `json:"parent"`
-	Params []VectorParam `json:"params"`
+	Dynamic bool          `json:"dynamic"`
+	Path    string        `json:"path"`
+	Parent  string        `json:"parent"`
+	Params  []VectorParam `json:"params"`
 }
 
 func (s *Session) Materials([]string) []Material           { return nil }

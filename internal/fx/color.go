@@ -32,6 +32,10 @@ func DefaultSetting() Setting {
 
 type rgb struct{ r, g, b float64 }
 
+func (c rgb) R() float64 { return c.r }
+func (c rgb) G() float64 { return c.g }
+func (c rgb) B() float64 { return c.b }
+
 func ParseHex(s string) (rgb, bool) {
 	s = strings.TrimPrefix(strings.TrimSpace(s), "#")
 	if len(s) != 6 {
@@ -124,4 +128,67 @@ func Same(a, b []float32) bool {
 		}
 	}
 	return true
+}
+
+// RenderRGB recolours an effect whose red, green and blue come from three
+// float curves. The red curve's shape (how bright over the effect's life)
+// is kept; the colour is spread over all three channels at the original
+// peak strength, scaled by Brightness (1 = unchanged).
+// orig[0] must be set; lens gives each output curve's sample count.
+func RenderRGB(orig [3][]float32, lens [3]int, s Setting) [3][]float32 {
+	var out [3][]float32
+	shape := orig[0]
+	peak := float32(0)
+	for _, ch := range orig {
+		for _, v := range ch {
+			if v > peak {
+				peak = v
+			}
+		}
+	}
+	if len(shape) == 0 || peak <= 0 {
+		return out
+	}
+	c := s.colorAt(0)
+	br := s.Brightness
+	if br <= 0 || br > 10 {
+		br = 1
+	}
+	col := [3]float64{c.r, c.g, c.b}
+	for ch := 0; ch < 3; ch++ {
+		n := lens[ch]
+		if n == 0 {
+			continue
+		}
+		out[ch] = make([]float32, n)
+		for i := 0; i < n; i++ {
+			// sample the red curve's shape at the same point of the effect's life
+			t := 0.0
+			if n > 1 {
+				t = float64(i) / float64(n-1)
+			}
+			j := int(t*float64(len(shape)-1) + 0.5)
+			out[ch][i] = float32(float64(shape[j]) * col[ch] * br)
+		}
+	}
+	return out
+}
+
+// RenderVec recolours an xyz vector curve that scales an effect's colour
+// ("Scale RGB"): each sample keeps its strongest channel's value as the
+// brightness, spread over the picked colour.
+func RenderVec(orig []float32, s Setting) []float32 {
+	out := make([]float32, len(orig))
+	c := s.colorAt(0)
+	br := s.Brightness
+	if br <= 0 || br > 10 {
+		br = 1
+	}
+	for i := 0; i+2 < len(orig); i += 3 {
+		peak := max(orig[i], orig[i+1], orig[i+2])
+		out[i] = float32(float64(peak) * c.r * br)
+		out[i+1] = float32(float64(peak) * c.g * br)
+		out[i+2] = float32(float64(peak) * c.b * br)
+	}
+	return out
 }

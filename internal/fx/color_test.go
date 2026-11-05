@@ -65,6 +65,9 @@ func TestCatalogKeysUnique(t *testing.T) {
 					t.Fatalf("duplicate key %s", k)
 				}
 				seen[k] = true
+				if (e.Kind == "pak") != (p.Asset != "" || p.VMAsset != "") || (e.Kind == "pak" && len(p.Paths) > 0) {
+					t.Fatalf("%s: pak parts need an Asset and no curve paths", k)
+				}
 				for _, path := range p.Paths {
 					if other, ok := paths[path]; ok {
 						t.Fatalf("path used twice: %s (%s, %s)", path, other, k)
@@ -74,7 +77,26 @@ func TestCatalogKeysUnique(t *testing.T) {
 			}
 		}
 	}
-	if len(seen) != 28 {
-		t.Fatalf("expected 28 parts, got %d", len(seen))
+	if len(seen) != 55 {
+		t.Fatalf("expected 55 parts, got %d", len(seen))
+	}
+}
+
+func TestRenderRGB(t *testing.T) {
+	orig := [3][]float32{{0, 1.97, 1}, {0, 0, 0, 0}, {0, 5, 10}}
+	out := RenderRGB(orig, [3]int{3, 4, 3}, Setting{Mode: "solid", Color: "#00ff00", Brightness: 1})
+	if out[0][1] != 0 || out[1][3] < 0.99 || out[1][3] > 1.01 || out[2][2] != 0 {
+		t.Fatalf("%v", out)
+	}
+	// green takes the red curve's shape, resampled to its own length
+	if g := out[1]; g[0] != 0 || g[1] < 1.9 || g[2] < 1.9 {
+		t.Fatalf("shape: %v", g)
+	}
+}
+
+func TestRenderVec(t *testing.T) {
+	got := RenderVec([]float32{1, 0.25, 0.25, 0.5, 0.1, 0.1}, Setting{Mode: "solid", Color: "#00ff00", Brightness: 1})
+	if got[0] != 0 || got[1] != 1 || got[2] != 0 || got[4] != 0.5 {
+		t.Fatal(got)
 	}
 }

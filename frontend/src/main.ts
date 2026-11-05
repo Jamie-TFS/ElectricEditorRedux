@@ -5,7 +5,7 @@ import "@fontsource/manrope/600.css";
 import "@fontsource/manrope/700.css";
 import "./style.css";
 
-import { api, errText, keyOf, onEdition, onStatus, onUpdate, type Character, type Edition, type Mode, type Setting, type State, type Status } from "./api";
+import { api, errText, keyOf, onEdition, onPak, onStatus, onUpdate, type Character, type FinderView, type PakStatus, type Edition, type Mode, type Setting, type State, type Status } from "./api";
 import { cssGradient, inkFor, keyColor } from "./color";
 import { GradientEditor } from "./gradient";
 import { ColorPicker } from "./picker";
@@ -18,7 +18,15 @@ let catalog: Character[] = [];
 let state: State = { active: "", profiles: [], parts: {} };
 let status: Status | null = null;
 let defaults: Setting;
+let pakStatus: PakStatus = { state: "off", message: "" };
 const sel = { char: "", effect: "", part: "" };
+// Electrics (live colour curves) and mod effects (baked into a pak, need a
+// Tekken restart) live in separate tabs so it's clear which is which.
+type Section = "live" | "pak";
+let section: Section = "live";
+const kindOf = (e: { kind?: string }): Section => (e.kind === "pak" ? "pak" : "live");
+const effectsOf = (c: Character) => c.effects.filter((e) => kindOf(e) === section);
+const visibleChars = () => catalog.filter((c) => effectsOf(c).length > 0);
 
 // ------------------------------------------------------------------ shell
 
@@ -28,6 +36,10 @@ document.querySelector("#app")!.innerHTML = `
     <span class="greeting" hidden></span>
     <span class="badge" hidden></span>
     <div class="conn" role="status"><span class="dot"></span><span class="conn-text">Looking for Tekken…</span></div>
+    <div class="sections" role="tablist" aria-label="Effect type">
+      <button role="tab" data-section="live" aria-selected="true">Electrics <small>live</small></button>
+      <button role="tab" data-section="pak" aria-selected="false">Mod effects <small>restart</small></button>
+    </div>
     <div class="update" hidden>
       <span class="update-text"></span>
       <button class="primary small" id="restart">Restart now</button>
@@ -49,9 +61,10 @@ document.querySelector("#app")!.innerHTML = `
         <button role="menuitem" data-act="bg">Set background image…</button>
         <button role="menuitem" data-act="bg-clear">Remove background image</button>
         <hr>
-        <button role="menuitem" data-act="dump">Save curve list…</button>
-        <button role="menuitem" data-act="trail-on" class="dev-only">Test: turn claw trails green</button>
-        <button role="menuitem" data-act="trail-off" class="dev-only">Undo claw trail test</button>
+        <button role="menuitem" data-act="dump" class="dev-only">Save curve list…</button>
+        <button role="menuitem" data-act="finder" class="dev-only">Find effects…</button>
+        <button role="menuitem" data-act="export" class="dev-only">Export game files…</button>
+        <button role="menuitem" data-act="testmod" class="dev-only">Test mod…</button>
         <span class="menu-version"></span>
       </div>
       <button class="primary" id="share">Share</button>
@@ -65,15 +78,21 @@ document.querySelector("#app")!.innerHTML = `
     </div>
     <figure class="life">
       <div class="strips" role="radiogroup" aria-label="Layer"></div>
-      <figcaption>What each layer sends to the game, from the start of the electric (left) to where it fades out (right). Click a bar to edit it.</figcaption>
+      <figcaption class="cap-live">What each layer sends to the game, from the start of the electric (left) to where it fades out (right). Click a bar to edit it.</figcaption>
+      <figcaption class="cap-pak"><span class="effect-note"></span> These colours are built into a small mod file in Tekken's <code>Paks\\mods</code> folder, so they show the next time Tekken starts. Click a bar to edit it.</figcaption>
     </figure>
+    <div class="pak-banner" role="status" hidden>
+      <span class="pak-dot" aria-hidden="true"></span>
+      <span class="pak-text"></span>
+      <button class="ghost small" id="pak-folder" hidden>Open log folder</button>
+    </div>
     <section class="editor">
       <div class="editor-head">
         <h2 class="layer-name"></h2>
         <div class="modes" role="radiogroup" aria-label="Colour mode">
           <button role="radio" data-mode="native">Game colours</button>
           <button role="radio" data-mode="solid">Solid</button>
-          <button role="radio" data-mode="gradient">Gradient</button>
+          <button role="radio" data-mode="gradient" class="live-only">Gradient</button>
         </div>
       </div>
       <div class="editor-body">
@@ -87,7 +106,7 @@ document.querySelector("#app")!.innerHTML = `
           <input type="range" id="brightness" min="0.5" max="20" step="0.1">
           <output id="brightness-out"></output>
         </label>
-        <label class="switch">
+        <label class="switch live-only">
           <input type="checkbox" id="keepfade">
           <span class="track" aria-hidden="true"></span>
           <span>Keep the original fade</span>
@@ -145,6 +164,88 @@ document.querySelector("#app")!.innerHTML = `
       </div>
     </form>
   </dialog>
+  <dialog id="finder-dlg" aria-labelledby="finder-title">
+    <div class="dlg finder">
+      <div class="finder-top">
+        <h2 id="finder-title">Effect finder</h2>
+        <button class="ghost small" id="finder-close" aria-label="Close">Close</button>
+      </div>
+      <div class="finder-setup">
+        <p class="muted">Gives every effect of a fighter a test colour. Do the move, say which colour it turned, and it narrows down until each colour is one effect. Load a match with the fighter and do the moves once before starting.</p>
+        <label class="field">
+          <span>Fighter</span>
+          <select id="finder-scope">
+            <option value="/character/grl/">Kazuya (grl)</option>
+            <option value="/character/ant/">Jin (ant)</option>
+            <option value="/character/swl/">Devil Jin (swl)</option>
+            <option value="/character/zbr/">Reina (zbr)</option>
+            <option value="/character/bee/">Heihachi (bee)</option>
+            <option value="custom">Other path…</option>
+          </select>
+        </label>
+        <label class="field finder-custom" hidden>
+          <span>Path contains</span>
+          <input id="finder-custom" placeholder="/effect/polariswork/common/" spellcheck="false">
+        </label>
+        <fieldset class="scope finder-kind">
+          <label><input type="radio" name="finder-kind" value="live" checked> <span><b>Colour curves</b><br><small class="muted">Instant. Electrics, beams, most particles.</small></span></label>
+          <label><input type="radio" name="finder-kind" value="pak"> <span><b>Materials</b><br><small class="muted">Needs a Tekken restart each round. Trails, meshes, shockwaves.</small></span></label>
+        </fieldset>
+        <div class="dlg-actions"><button class="primary" id="finder-start">Start</button></div>
+      </div>
+      <div class="finder-run" hidden>
+        <p class="finder-round"></p>
+        <p class="finder-pak" role="status"></p>
+        <p class="finder-ask">Do the move. What colour did the effect turn?</p>
+        <div class="finder-colors"></div>
+        <ol class="finder-legend"></ol>
+        <p class="muted small-note">Effect stayed its normal colour? It isn't in this list: try the other mode, or another path.</p>
+        <p class="form-error" id="finder-error" role="alert"></p>
+        <div class="dlg-actions">
+          <button class="ghost" id="finder-back">Back a round</button>
+          <button class="ghost" id="finder-legend">Open finder.txt</button>
+          <button class="ghost danger" id="finder-stop">Stop and restore colours</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="export-dlg" aria-labelledby="export-title">
+    <form method="dialog" class="dlg">
+      <h2 id="export-title">Export game files</h2>
+      <p class="muted">Pulls the original files out of Tekken into research.zip, with readable names. One filter per line; a file is included if its path contains any of them. Filters are case-sensitive.</p>
+      <textarea id="export-in" rows="7" spellcheck="false" aria-labelledby="export-title"></textarea>
+      <p class="form-error" id="export-error" role="alert"></p>
+      <div class="dlg-actions">
+        <button class="ghost" value="cancel" formnovalidate>Cancel</button>
+        <button class="primary" value="ok" id="export-ok">Export</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="test-dlg" aria-labelledby="test-title">
+    <form method="dialog" class="dlg">
+      <h2 id="test-title">Test mod</h2>
+      <p class="muted">Builds ElectricEditorTest_P from raw material values, for experiments. One material per line, then Param=value (1 number) or Param=r,g,b,a.</p>
+      <textarea id="test-in" rows="6" spellcheck="false" aria-labelledby="test-title"></textarea>
+      <p class="finder-pak" id="test-status" role="status"></p>
+      <div class="dlg-actions">
+        <button class="ghost" value="close" formnovalidate>Close</button>
+        <button class="ghost danger" type="button" id="test-remove">Remove test mod</button>
+        <button class="primary" type="button" id="test-build">Build and install</button>
+      </div>
+    </form>
+  </dialog>
+  <div class="lock" hidden>
+    <form class="lock-card">
+      <span class="mark" aria-hidden="true"></span>
+      <h1>Supporter beta</h1>
+      <p>This is an early build of the next update. It's open to supporters while it's being finished, and everyone gets it when it's released.</p>
+      <p class="muted">Got a supporter key? Paste it here. It starts with EE-.</p>
+      <textarea id="lock-key" rows="3" spellcheck="false" placeholder="EE-…" aria-label="Supporter key"></textarea>
+      <p class="form-error" id="lock-error" role="alert"></p>
+      <button class="primary" id="lock-ok">Unlock</button>
+      <span class="lock-version"></span>
+    </form>
+  </div>
   <div class="toast" role="status" aria-live="polite"></div>
 `;
 
@@ -173,8 +274,18 @@ const char = () => catalog.find((c) => c.id === sel.char)!;
 const effect = () => char().effects.find((e) => e.id === sel.effect)!;
 const part = () => effect().parts.find((p) => p.id === sel.part)!;
 const curKey = () => keyOf(sel.char, sel.effect, sel.part);
-const settingFor = (key: string): Setting => state.parts[key] ?? { ...structuredClone(defaults), mode: "native" };
+const settingFor = (key: string): Setting => {
+  if (state.parts[key]) return state.parts[key];
+  const [c, e] = key.split(".");
+  const k = catalog.find((x) => x.id === c)?.effects.find((x) => x.id === e)?.kind;
+  const pak = k === "pak" || k === "rgb";
+  // mod effects use brightness as a multiplier of the game's own glow (1 = unchanged)
+  return { ...structuredClone(defaults), mode: "native", ...(pak ? { brightness: 1 } : {}) };
+};
 const current = () => settingFor(curKey());
+const isPak = () => effect().kind === "pak";
+// solid-colour-only effects: mod effects and live float-curve colour
+const isSimple = () => effect().kind === "pak" || effect().kind === "rgb";
 
 function toast(msg: string) {
   const t = $(".toast");
@@ -203,9 +314,10 @@ function update(patch: Partial<Setting>) {
 
 function renderRail() {
   const rail = $(".rail");
-  rail.innerHTML = catalog.map((c) => {
-    const swatches = c.effects[0].parts.slice(0, 4).map((p) => {
-      const s = state.parts[keyOf(c.id, c.effects[0].id, p.id)];
+  rail.innerHTML = visibleChars().map((c) => {
+    const first = effectsOf(c)[0];
+    const swatches = first.parts.slice(0, 4).map((p) => {
+      const s = state.parts[keyOf(c.id, first.id, p.id)];
       return `<i style="background:${s ? cssGradient(s, NATIVE[p.role], "180deg") : "transparent"}" class="${s ? "" : "empty"}"></i>`;
     }).join("");
     return `<button class="fighter${c.id === sel.char ? " on" : ""}" data-char="${c.id}" aria-current="${c.id === sel.char}">
@@ -216,16 +328,18 @@ function renderRail() {
 function renderHead() {
   $(".fighter-name").textContent = char().name;
   const tabs = $(".effects");
-  tabs.innerHTML = char().effects.map((e) =>
+  tabs.innerHTML = effectsOf(char()).map((e) =>
     `<button role="tab" aria-selected="${e.id === sel.effect}" data-effect="${e.id}">${e.label}</button>`).join("");
-  tabs.hidden = char().effects.length < 2;
+  tabs.hidden = effectsOf(char()).length < 2;
+  document.querySelectorAll<HTMLElement>(".sections [data-section]").forEach((b) =>
+    b.setAttribute("aria-selected", String(b.dataset.section === section)));
 }
 
 function renderLayers() {
   const loaded = status?.loaded ?? {};
   strips.set(effect().parts.map((p) => {
     const key = keyOf(sel.char, sel.effect, p.id);
-    return { key, label: p.label, setting: settingFor(key), focus: p.id === sel.part, inGame: !!loaded[key] };
+    return { key, label: p.label, setting: settingFor(key), focus: p.id === sel.part, inGame: !!loaded[key], flat: isSimple() };
   }));
 }
 
@@ -238,8 +352,18 @@ function renderEditor(syncPicker = true) {
   const body = $(".editor");
   body.dataset.view = s.mode;
   const br = $<HTMLInputElement>("#brightness");
+  const pak = isSimple();
+  document.body.classList.toggle("rgb", effect().kind === "rgb");
+  document.body.classList.toggle("pak", pak);
+  br.min = pak ? "0.2" : "0.5";
+  br.max = pak ? "4" : "20";
+  br.step = pak ? "0.05" : "0.1";
   br.value = String(s.brightness);
-  $("#brightness-out").textContent = s.brightness.toFixed(1);
+  $(".native-note").textContent = pak
+    ? "This layer uses Tekken's own colours. Pick Solid to recolour it."
+    : "This layer uses Tekken's own colours. Pick Solid or Gradient to recolour it.";
+  $(".effect-note").textContent = effect().note ?? "";
+  $("#brightness-out").textContent = pak ? `${s.brightness.toFixed(2)}×` : s.brightness.toFixed(1);
   $<HTMLInputElement>("#keepfade").checked = s.keepFade;
   if (syncPicker) {
     if (s.mode === "gradient") { grad.set(s.stops); picker.set(grad.selectedColor()); }
@@ -282,12 +406,13 @@ function renderAll() {
   renderEditor();
   renderProfiles();
   renderStatus();
+  renderPak();
 }
 
 function select(charId: string, effectId?: string, partId?: string) {
   sel.char = charId;
   const c = char();
-  sel.effect = effectId ?? c.effects[0].id;
+  sel.effect = effectId ?? effectsOf(c)[0].id;
   sel.part = partId ?? effect().parts[0].id;
   grad.selected = 0;
   renderAll();
@@ -295,6 +420,13 @@ function select(charId: string, effectId?: string, partId?: string) {
 
 // ------------------------------------------------------------------ events
 
+$(".sections").addEventListener("click", (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>("[data-section]");
+  if (!b || b.dataset.section === section) return;
+  section = b.dataset.section as Section;
+  const keep = visibleChars().find((c) => c.id === sel.char);
+  select((keep ?? visibleChars()[0]).id);
+});
 $(".rail").addEventListener("click", (e) => {
   const b = (e.target as HTMLElement).closest<HTMLElement>("[data-char]");
   if (b) select(b.dataset.char!);
@@ -312,6 +444,7 @@ $(".modes").addEventListener("click", (e) => {
   if (mode !== "native" && s.mode === "native") {
     patch.color = s.color || defaults.color;
     patch.stops = s.stops?.length ? s.stops : defaults.stops;
+    if (isSimple()) patch.brightness = 1; // 1x = same glow strength as the original
   }
   update(patch);
   renderEditor();
@@ -389,14 +522,40 @@ menu.addEventListener("click", async (e) => {
     try { const path = await api.DumpCurves(); toast(`Saved ${path.split(/[\\/]/).pop()}`); }
     catch (err) { toast(errText(err)); }
   }
-  if (act === "trail-on" || act === "trail-off") {
-    try {
-      const n = await api.TrailTest(act === "trail-on");
-      toast(act === "trail-on"
-        ? (n ? `Set ${n} trail colours to green. Try MCR1 or 1,1,2.` : "No trail materials loaded yet. Start a match first.")
-        : `Restored ${n} trail colours`);
-    } catch (err) { toast(errText(err)); }
+  if (act === "finder") openFinder();
+  if (act === "testmod") {
+    const dlg = $<HTMLDialogElement>("#test-dlg");
+    const inp = $<HTMLTextAreaElement>("#test-in");
+    inp.value = inp.value || "DA_SWL_KisekiRender @20=fdffffff\nDA_SWL_KisekiRender3 @12=fdffffff @20=fdffffff";
+    const show = (s: { state: string; message: string }) => {
+      const el = $("#test-status");
+      el.dataset.state = s.state;
+      el.textContent = s.message || "No test mod installed.";
+    };
+    show(await api.TestModStatus());
+    dlg.showModal();
+    const poll = window.setInterval(async () => { if (!dlg.open) return clearInterval(poll); show(await api.TestModStatus()); }, 1200);
+    $("#test-build").onclick = async () => { try { show(await api.BuildTestMod(inp.value)); } catch (err) { show({ state: "error", message: errText(err) }); } };
+    $("#test-remove").onclick = async () => { show(await api.BuildTestMod("")); };
   }
+  if (act === "export") {
+    const dlg = $<HTMLDialogElement>("#export-dlg");
+    const inp = $<HTMLTextAreaElement>("#export-in");
+    if (!inp.value) inp.value = ["/Character/Trace/", "DA_CharacterEffect_", "_Groundwave", "MI_EF_Swl_S_Chain"].join("\n");
+    $("#export-error").textContent = "";
+    dlg.showModal();
+    $<HTMLFormElement>("form", dlg).onsubmit = async (ev) => {
+      if ((ev.submitter as HTMLButtonElement)?.value !== "ok") return;
+      ev.preventDefault();
+      const ok = $<HTMLButtonElement>("#export-ok");
+      ok.disabled = true;
+      ok.textContent = "Exporting…";
+      try { toast(await api.ExportAssets(inp.value)); dlg.close(); }
+      catch (err) { $("#export-error").textContent = errText(err); }
+      finally { ok.disabled = false; ok.textContent = "Export"; }
+    };
+  }
+
   if (act === "delete") {
     if (!confirm(`Delete the profile "${state.active}"?`)) return;
     try { state = await api.DeleteProfile(); renderAll(); toast("Profile deleted"); } catch (err) { toast(errText(err)); }
@@ -434,6 +593,81 @@ $("#import-code").addEventListener("click", async () => {
   } catch (err) { $("#share-error").textContent = errText(err); }
 });
 
+// ------------------------------------------------------------------ effect finder (dev)
+
+const finderDlg = $<HTMLDialogElement>("#finder-dlg");
+let finderPoll = 0;
+const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
+
+function renderFinder(v: FinderView) {
+  $(".finder-setup", finderDlg).hidden = v.active;
+  $(".finder-run", finderDlg).hidden = !v.active;
+  $("#finder-error").textContent = "";
+  if (!v.active) return;
+  const left = v.entries?.length ?? 0;
+  $(".finder-round").textContent = `Round ${v.round} · ${left} of ${v.total} ${v.kind === "live" ? "colour curves" : "materials"} left` +
+    (v.done ? " · each colour is one effect now" : "");
+  const pk = $(".finder-pak");
+  pk.hidden = v.kind !== "pak" || !v.pak.message;
+  pk.dataset.state = v.pak.state;
+  pk.textContent = v.pak.message;
+  $(".finder-colors").innerHTML = (v.colors ?? []).map((c) =>
+    `<button class="finder-color" data-hex="${c.color}" ${left < 2 ? "disabled" : ""}>
+      <i style="background:${c.color}"></i><span>${c.colorName}</span><small>${c.name}</small></button>`).join("");
+  $(".finder-ask").textContent = left < 2 ? "Found it." : "Do the move. What colour did the effect turn?";
+  const legend = $(".finder-legend");
+  legend.hidden = !v.done;
+  legend.innerHTML = v.done ? (v.entries ?? []).map((e) =>
+    `<li><i style="background:${e.color}"></i><b>${e.colorName}</b><span>${esc(e.name)}</span><small>${esc(e.detail)}</small></li>`).join("") : "";
+}
+
+async function openFinder() {
+  const sc = { kazuya: "/character/grl/", jin: "/character/ant/", deviljin: "/character/swl/", reina: "/character/zbr/", heihachi: "/character/bee/" } as Record<string, string>;
+  const v = await api.FinderView();
+  if (!v.active && sc[sel.char]) $<HTMLSelectElement>("#finder-scope").value = sc[sel.char];
+  renderFinder(v);
+  finderDlg.showModal();
+  clearInterval(finderPoll);
+  finderPoll = window.setInterval(async () => {
+    if (!finderDlg.open) return clearInterval(finderPoll);
+    const cur = await api.FinderView();
+    if (cur.active && cur.kind === "pak") renderFinder(cur);
+  }, 1500);
+}
+const finderAct = async (fn: () => Promise<FinderView>) => {
+  try { renderFinder(await fn()); } catch (err) { $("#finder-error").textContent = errText(err); }
+};
+$("#finder-scope").addEventListener("change", (e) => {
+  ($(".finder-custom") as HTMLElement).hidden = (e.target as HTMLSelectElement).value !== "custom";
+});
+$("#finder-start").addEventListener("click", async () => {
+  const pick = $<HTMLSelectElement>("#finder-scope").value;
+  const scope = pick === "custom" ? $<HTMLInputElement>("#finder-custom").value : pick;
+  const kind = ($<HTMLInputElement>('input[name="finder-kind"]:checked', finderDlg)).value;
+  try { renderFinder(await api.FinderStart(kind, scope)); }
+  catch (err) { toast(errText(err)); }
+});
+$(".finder-colors").addEventListener("click", (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>("[data-hex]");
+  if (b) finderAct(() => api.FinderPick(b.dataset.hex!));
+});
+$("#finder-back").addEventListener("click", () => finderAct(() => api.FinderBack()));
+$("#finder-stop").addEventListener("click", () => finderAct(() => api.FinderStop()));
+$("#finder-legend").addEventListener("click", () => api.OpenFinderLegend());
+$("#finder-close").addEventListener("click", () => finderDlg.close());
+
+// ------------------------------------------------------------------ claw trail mod status
+
+function renderPak() {
+  const b = $(".pak-banner");
+  b.hidden = !isPak() || pakStatus.state === "off" || !pakStatus.message;
+  b.dataset.state = pakStatus.state;
+  $(".pak-text").textContent = pakStatus.message;
+  $("#pak-folder").hidden = pakStatus.state !== "error";
+}
+onPak((s) => { pakStatus = s; if (catalog.length) renderPak(); });
+$("#pak-folder").addEventListener("click", () => api.OpenPakFolder());
+
 // ------------------------------------------------------------------ edition, updates, background
 
 function setBackground(url: string) {
@@ -457,9 +691,24 @@ function applyEdition(ed: Edition) {
   rm.hidden = !ed.tier;
   rm.textContent = `Remove key${ed.keyName ? ` (${ed.keyName})` : ""}`;
   $(".menu-version").textContent = ed.version === "dev" ? "Development build" : `Version ${ed.version}`;
+  $(".lock").hidden = !ed.locked;
+  $(".lock-version").textContent = `Version ${ed.version}`;
   if (catalog.length) renderAccents();
 }
 onEdition(applyEdition);
+$<HTMLFormElement>(".lock-card").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  $("#lock-error").textContent = "";
+  try {
+    const ed = await api.ActivateKey($<HTMLTextAreaElement>("#lock-key").value);
+    if (ed.locked) {
+      $("#lock-error").textContent = "That key is valid but doesn't include beta access.";
+      return;
+    }
+    applyEdition(ed);
+    toast(ed.greeting ? `${ed.greeting}!` : "Beta unlocked. Thanks for the support!");
+  } catch (err) { $("#lock-error").textContent = errText(err); }
+});
 
 onUpdate((u) => {
   const box = $(".update");
@@ -475,6 +724,6 @@ $("#restart").addEventListener("click", () => api.RestartToUpdate().catch((e) =>
   applyEdition(await api.Edition());
   setBackground(await api.Background().catch(() => ""));
   [catalog, state, defaults] = await Promise.all([api.Catalog(), api.State(), api.DefaultSetting()]);
-  select(catalog[0].id);
+  select(visibleChars()[0].id);
   onStatus((s) => { status = s; renderStatus(); renderLayers(); });
 })();

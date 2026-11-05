@@ -19,6 +19,8 @@ export namespace fx {
 	export class Effect {
 	    id: string;
 	    label: string;
+	    kind?: string;
+	    note?: string;
 	    parts: Part[];
 	
 	    static createFrom(source: any = {}) {
@@ -29,6 +31,8 @@ export namespace fx {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.label = source["label"];
+	        this.kind = source["kind"];
+	        this.note = source["note"];
 	        this.parts = this.convertValues(source["parts"], Part);
 	    }
 	
@@ -83,6 +87,22 @@ export namespace fx {
 		    }
 		    return a;
 		}
+	}
+	export class Copy {
+	    From: string;
+	    Rename: string[][];
+	    Users: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Copy(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.From = source["From"];
+	        this.Rename = source["Rename"];
+	        this.Users = source["Users"];
+	    }
 	}
 	
 	
@@ -154,6 +174,7 @@ export namespace main {
 	    keyName: string;
 	    keysOn: boolean;
 	    version: string;
+	    locked: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Edition(source);
@@ -171,7 +192,88 @@ export namespace main {
 	        this.keyName = source["keyName"];
 	        this.keysOn = source["keysOn"];
 	        this.version = source["version"];
+	        this.locked = source["locked"];
 	    }
+	}
+	export class FinderEntry {
+	    color: string;
+	    colorName: string;
+	    name: string;
+	    detail: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FinderEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.color = source["color"];
+	        this.colorName = source["colorName"];
+	        this.name = source["name"];
+	        this.detail = source["detail"];
+	    }
+	}
+	export class PakStatus {
+	    state: string;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PakStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.state = source["state"];
+	        this.message = source["message"];
+	    }
+	}
+	export class FinderView {
+	    active: boolean;
+	    kind: string;
+	    scope: string;
+	    round: number;
+	    total: number;
+	    entries: FinderEntry[];
+	    colors: FinderEntry[];
+	    done: boolean;
+	    pak: PakStatus;
+	    legend: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FinderView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.active = source["active"];
+	        this.kind = source["kind"];
+	        this.scope = source["scope"];
+	        this.round = source["round"];
+	        this.total = source["total"];
+	        this.entries = this.convertValues(source["entries"], FinderEntry);
+	        this.colors = this.convertValues(source["colors"], FinderEntry);
+	        this.done = source["done"];
+	        this.pak = this.convertValues(source["pak"], PakStatus);
+	        this.legend = source["legend"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class State {
 	    active: string;
@@ -239,6 +341,7 @@ export namespace main {
 		    return a;
 		}
 	}
+	
 	
 	export class Status {
 	    state: string;
