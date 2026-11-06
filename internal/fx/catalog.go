@@ -116,9 +116,8 @@ var Catalog = []Character{
 				{ID: "b12", Label: "b1,2 / df3+4,1,2", Role: "glow", Asset: "MI_EF_Grl_Aura09", Params: []string{"Col2", "EdgeCol", "EdgeCol2"}},
 				{ID: "heat", Label: "Heat db3+4", Role: "core", Asset: "MI_EF_Grl_DvlAura_01", Params: []string{"EDGEcolor"}},
 				{ID: "ff2", Label: "f,f2", Role: "outer", Asset: "MI_EF_Grl_Wing_00", Params: []string{"EDGEcolor"}},
-				// Not placed yet (hidden for release; add back once the move is known):
-				// {ID: "fire", Label: "Fire", Role: "trail", Asset: "MI_EF_Grl_Aura06", Params: []string{"Col1", "Col2"}},
-				// {ID: "aura00", Label: "Devil aura 2", Role: "glow", Asset: "MI_EF_Grl_DvlAura_00", Params: []string{"EDGEcolor"}},
+				{ID: "fire", Label: "Main shockwave", Role: "trail", Asset: "MI_EF_Grl_Aura06", Params: []string{"Col1", "Col2"}},
+				{ID: "aura00", Label: "Main shockwave aura", Role: "glow", Asset: "MI_EF_Grl_DvlAura_00", Params: []string{"EDGEcolor"}},
 			}},
 		{ID: "beam", Label: "Beam", Kind: "pak",
 			Note: "Kazuya's eye beam: the beam, its lightning, fire and glow. White highlights stay white.",

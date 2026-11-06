@@ -18,6 +18,9 @@ func TestWS2CopyKeepsJinAndDevilJinApart(t *testing.T) {
 	list := func(p store.Profile) string {
 		var b []string
 		for _, e := range m.edits(p) {
+			if e.Asset == "NS_EF_Swl_Beam" && len(e.VM) > 0 && allNative(e.VM) {
+				continue // live anchors ride along with every mod
+			}
 			x := e.Asset
 			if e.Keep {
 				x += "(keep)"
@@ -78,7 +81,7 @@ func TestKazuyaBeamExpands(t *testing.T) {
 	s := store.Load()
 	m := NewPakMods(s, NewEngine(s))
 	edits := m.edits(store.Profile{"kazuya.beam.main": fx.Setting{Mode: "solid", Color: "#ff0000", Brightness: 1}})
-	if len(edits) != 1 || edits[0].Asset != "NS_EF_Grl_Beam" || len(edits[0].VM) < 10 {
+	if len(edits) != 2 || edits[0].Asset != "NS_EF_Grl_Beam" || len(edits[0].VM) < 10 || !allNative(edits[1].VM) {
 		t.Fatalf("%+v", edits)
 	}
 	for k := range edits[0].VM {
@@ -100,5 +103,49 @@ func TestChainAuraScripts(t *testing.T) {
 	}
 	if got["NS_EF_Swl_Chain01"] == 0 || got["NS_EF_Swl_Chain02"] == 0 || got["MI_EF_Ant_S_Aura24"] == 0 {
 		t.Fatalf("%v", got)
+	}
+}
+
+func TestShapeIgnoresScriptColours(t *testing.T) {
+	a := []pak.Edit{{Asset: "NS_EF_Swl_Beam", VM: map[string][3]float64{"swl-beam-light": {1, 0, 0}}}, {Asset: "MI_X", Color: [3]float64{1, 0, 0}}}
+	b := []pak.Edit{{Asset: "NS_EF_Swl_Beam", VM: map[string][3]float64{"swl-beam-light": {0, 1, 0}}}, {Asset: "MI_X", Color: [3]float64{1, 0, 0}}}
+	c := []pak.Edit{{Asset: "NS_EF_Swl_Beam", VM: map[string][3]float64{"swl-beam-light": {0, 1, 0}}}, {Asset: "MI_X", Color: [3]float64{0, 1, 0}}}
+	if shape(a) != shape(b) {
+		t.Fatal("script colour change should keep the shape")
+	}
+	if shape(a) == shape(c) {
+		t.Fatal("material colour change must change the shape")
+	}
+}
+
+func allNative(vm map[string][3]float64) bool {
+	for k := range vm {
+		if !strings.HasSuffix(k, "#native") {
+			return false
+		}
+	}
+	return true
+}
+
+func TestAnchorsMakeColourChangesLive(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("APPDATA", t.TempDir())
+	s := store.Load()
+	m := NewPakMods(s, NewEngine(s))
+	claws := store.Profile{"deviljin.claws.swipe": fx.Setting{Mode: "solid", Color: "#00ff00", Brightness: 1}}
+	beam := store.Profile{"deviljin.claws.swipe": fx.Setting{Mode: "solid", Color: "#00ff00", Brightness: 1},
+		"deviljin.beam.main": fx.Setting{Mode: "solid", Color: "#0000ff", Brightness: 1}}
+	a, b := m.edits(claws), m.edits(beam)
+	if shape(a) != shape(b) {
+		t.Fatal("colouring an anchored beam layer must not need a new mod")
+	}
+	// the anchored tables differ only in the colour floats
+	ca, cb := pak.VMColours(a), pak.VMColours(b)
+	for _, n := range []string{"swl-beam-e8", "swl-beam-light"} {
+		ta, _ := pak.LiveTable(n, ca[n])
+		tb, _ := pak.LiveTable(n, cb[n])
+		if len(ta) != len(tb) || string(ta) == string(tb) {
+			t.Fatal(n)
+		}
 	}
 }

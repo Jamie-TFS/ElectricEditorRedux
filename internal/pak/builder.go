@@ -521,6 +521,10 @@ func (b *Builder) Build(paks string, edits []Edit) (files []string, skipped []st
 				ueData, perr = applyRenames(ueData, e.Rename)
 			}
 		}
+		for _, w := range VMWarnings {
+			b.log("%s: skipped one emitter (%s)", e.Asset, w)
+		}
+		VMWarnings = nil
 		if perr != nil || n == 0 {
 			b.log("%s: not patched (%v, %d params)", e.Asset, perr, n)
 			if perr != nil {

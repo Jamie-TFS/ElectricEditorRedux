@@ -34,6 +34,11 @@ type VMPatch struct {
 	LitSig string // hex: the script's whole literal table
 	Edits  []OpEdit
 	Sets   []LitSet
+	// Anchor: every Set has the game's own value as Orig, so the patch with
+	// no colour looks exactly like the game. Such patches go into every mod
+	// we build, which lets their colours change live later without a
+	// restart (the mod is the anchor live mode writes into).
+	Anchor bool
 }
 
 // OpEdit changes the u16 (or, with Byte, the byte) at At+Pos (bytecode
@@ -70,6 +75,7 @@ var VMPatches = map[string]VMPatch{
 			{Off: 88, Chan: 1, Slot: 0, Gain: 10, Orig: 0.30000001192092896},
 			{Off: 4, Chan: 2, Slot: 0, Gain: 10, Orig: 0.30000001192092896},
 		},
+		Anchor: true,
 	},
 
 	// DVJ beam core (NiagaraEmitter_8 "BeamCoreGlow001" spawn), Initial.Color per spawn group: slot 0 = glow (3, 0.28, 0.28), slot 1 = the straight beam (10, 0.3, 0.3), x50 in update, and the default group (1, 0, 0) at its start
@@ -113,6 +119,7 @@ var VMPatches = map[string]VMPatch{
 			{Off: 112, Chan: 1, Slot: 1, Gain: 1, Orig: 0.0},
 			{Off: 156, Chan: 2, Slot: 1, Gain: 1, Orig: 0.0},
 		},
+		Anchor: true,
 	},
 
 	// DVJ beam light line (NiagaraEmitter_9 "BeamLight" spawn): Initial.Color = (3, 0.1, 0.1), x50 in update
@@ -132,11 +139,16 @@ var VMPatches = map[string]VMPatch{
 			{Off: 40, Chan: 1, Slot: 0, Gain: 3, Orig: 0.10000000149011612},
 			{Off: 4, Chan: 2, Slot: 0, Gain: 3, Orig: 0.10000000149011612},
 		},
+		Anchor: true,
 	},
 }
 
-// VMKey splits "name#slot" (slot 0 when there's no #).
+// VMKey splits "name#slot" (slot 0 when there's no #; "name#native" is
+// slot -1, which no colour uses).
 func VMKey(k string) (string, int) {
+	if n, ok := strings.CutSuffix(k, "#native"); ok {
+		return n, -1 // routed, but every slot keeps the game's value
+	}
 	if i := strings.LastIndexByte(k, '#'); i >= 0 {
 		if n, err := strconv.Atoi(k[i+1:]); err == nil {
 			return k[:i], n
@@ -160,17 +172,32 @@ func applyVMs(uexp []byte, vm map[string][3]float64) (int, error) {
 		names = append(names, n)
 	}
 	sort.Strings(names)
+	applied := 0
+	var failed []string
 	for _, n := range names {
 		p, ok := VMPatches[n]
 		if !ok {
-			return 0, fmt.Errorf("unknown script patch %s", n)
+			failed = append(failed, n+": unknown script patch")
+			continue
 		}
 		if err := ApplyVM(uexp, p, byPatch[n]); err != nil {
-			return 0, fmt.Errorf("%s: %v", n, err)
+			// one emitter that doesn't match (game update, odd copy) must
+			// not cost the rest of the system its colours
+			failed = append(failed, n+": "+err.Error())
+			continue
 		}
+		applied++
 	}
-	return len(names), nil
+	VMWarnings = append(VMWarnings, failed...)
+	if applied == 0 && len(failed) > 0 {
+		return 0, fmt.Errorf("%s", strings.Join(failed, "; "))
+	}
+	return applied, nil
 }
+
+// VMWarnings collects script patches that were skipped during a build (the
+// builder logs and clears it).
+var VMWarnings []string
 
 // ApplyVM patches one script in uexp (in place). cols maps colour slot to
 // colour; slots without one keep the game's values.
@@ -257,4 +284,56 @@ func applyVMAt(uexp []byte, p VMPatch, cols map[int][3]float64, at int) error {
 		binary.LittleEndian.PutUint32(uexp[lat+l.Off:], math.Float32bits(float32(v)))
 	}
 	return nil
+}
+
+// VMColours groups the script colours in edits by patch: patch -> colour
+// slot -> colour. It is what a built mod holds, so it can be updated live.
+func VMColours(edits []Edit) map[string]map[int][3]float64 {
+	out := map[string]map[int][3]float64{}
+	for _, e := range edits {
+		for k, c := range e.VM {
+			name, slot := VMKey(k)
+			if out[name] == nil {
+				out[name] = map[int][3]float64{}
+			}
+			out[name][slot] = c
+		}
+	}
+	return out
+}
+
+// LiveTable is the patch's literal table as a mod built with cols holds it
+// (the bytes the game has in memory once it has loaded that mod).
+func LiveTable(name string, cols map[int][3]float64) ([]byte, bool) {
+	p, ok := VMPatches[name]
+	if !ok {
+		return nil, false
+	}
+	t, err := hex.DecodeString(p.LitSig)
+	if err != nil {
+		return nil, false
+	}
+	for _, l := range p.Sets {
+		if l.Off < 0 || l.Off+4 > len(t) {
+			return nil, false
+		}
+		v := l.Orig
+		if c, ok := cols[l.Slot]; ok {
+			v = c[l.Chan] * l.Gain
+		}
+		binary.LittleEndian.PutUint32(t[l.Off:], math.Float32bits(float32(v)))
+	}
+	return t, true
+}
+
+// Anchors lists the anchor patches (see VMPatch.Anchor).
+func Anchors() []string {
+	var out []string
+	for k, p := range VMPatches {
+		if p.Anchor {
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
 }

@@ -41,3 +41,7 @@ type Material struct {
 
 func (s *Session) Materials([]string) []Material           { return nil }
 func (s *Session) SetVector(VectorParam, [4]float32) error { return ErrNotRunning }
+
+func (s *Session) ScriptTables(string, [][]byte) [][]uint64 { return nil }
+func (s *Session) ScriptCount(string) int                   { return 0 }
+func (s *Session) WriteChecked(uint64, []byte) error        { return ErrNotRunning }

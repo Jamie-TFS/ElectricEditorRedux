@@ -3,7 +3,10 @@
 package game
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -14,6 +17,9 @@ const (
 	floatCurveClass = "NiagaraDataInterfaceCurve"
 	// Vector curves (xyz per sample) carry "Scale RGB" colour multipliers.
 	vectorCurveClass = "NiagaraDataInterfaceVectorCurve"
+	// Niagara scripts hold their cooked constants (ScriptLiterals) in a
+	// TArray<uint8> on the object, read every time a particle spawns.
+	scriptClass = "NiagaraScript"
 )
 
 type curve struct {
@@ -32,6 +38,8 @@ type Session struct {
 	curves   map[string]curve
 	lastNum  int
 	lastScan time.Time
+	scripts  []uint64          // NiagaraScript objects
+	spaths   map[uint64]string // their paths, filled on demand
 }
 
 func Open() (*Session, error) {
@@ -73,7 +81,7 @@ func (s *Session) MaybeRescan() bool {
 
 func (s *Session) Rescan() {
 	num := s.o.count()
-	var objs, floats, vecs []uint64
+	var objs, floats, vecs, scripts []uint64
 	for i := 0; i < num; i++ {
 		obj := s.o.item(i)
 		if obj == 0 {
@@ -86,6 +94,8 @@ func (s *Session) Rescan() {
 			floats = append(floats, obj)
 		case vectorCurveClass:
 			vecs = append(vecs, obj)
+		case scriptClass:
+			scripts = append(scripts, obj)
 		}
 	}
 
@@ -123,6 +133,7 @@ func (s *Session) Rescan() {
 		}
 	}
 	s.curves = curves
+	s.scripts = scripts
 	s.lastNum = num
 	s.lastScan = time.Now()
 }
@@ -216,4 +227,80 @@ func (s *Session) Write(path string, v []float32) error {
 		return errGone
 	}
 	return s.p.writeFloats(l.ptr, v)
+}
+
+// ScriptTables finds the literal tables of the Niagara system asset (by
+// name, e.g. "NS_EF_Swl_Beam") that equal one of tables byte for byte. It
+// returns each table's data addresses. The TArray is looked for on the
+// script object rather than at a fixed offset (0x270 in the current build).
+func (s *Session) ScriptTables(asset string, tables [][]byte) [][]uint64 {
+	out := make([][]uint64, len(tables))
+	if s.spaths == nil {
+		s.spaths = map[uint64]string{}
+	}
+	lens := map[int]bool{}
+	for _, t := range tables {
+		lens[len(t)] = true
+	}
+	key := "/" + asset + "."
+	head := make([]byte, 0x400)
+	for _, obj := range s.scripts {
+		p, ok := s.spaths[obj]
+		if !ok {
+			p = s.o.path(obj)
+			s.spaths[obj] = p
+		}
+		if !strings.Contains(p, key) || !s.p.read(obj, head) {
+			continue
+		}
+		for off := 0x40; off+16 <= len(head); off += 8 {
+			ptr := binary.LittleEndian.Uint64(head[off:])
+			num := int(int32(binary.LittleEndian.Uint32(head[off+8:])))
+			max := int(int32(binary.LittleEndian.Uint32(head[off+12:])))
+			if !lens[num] || max < num || max > 1<<16 || !plausiblePtr(ptr&^7) {
+				continue
+			}
+			data := make([]byte, num)
+			if !s.p.read(ptr, data) {
+				continue
+			}
+			for i, t := range tables {
+				if bytes.Equal(data, t) {
+					out[i] = append(out[i], ptr)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// ScriptCount is how many Niagara scripts of the asset are loaded.
+func (s *Session) ScriptCount(asset string) int {
+	n := 0
+	for _, obj := range s.scripts {
+		p, ok := s.spaths[obj]
+		if !ok {
+			p = s.o.path(obj)
+			if s.spaths == nil {
+				s.spaths = map[uint64]string{}
+			}
+			s.spaths[obj] = p
+		}
+		if strings.Contains(p, "/"+asset+".") {
+			n++
+		}
+	}
+	return n
+}
+
+// WriteChecked writes b at addr and reads it back.
+func (s *Session) WriteChecked(addr uint64, b []byte) error {
+	if err := s.p.write(addr, b); err != nil {
+		return err
+	}
+	got := make([]byte, len(b))
+	if !s.p.read(addr, got) || !bytes.Equal(got, b) {
+		return errors.New("read back differs")
+	}
+	return nil
 }

@@ -492,3 +492,24 @@ func syncRGB(io curveIO, parts map[string]fx.Part, profile store.Profile, trk ma
 	}
 	return loaded, applied, dirty
 }
+
+// PID of the connected Tekken (0 if none).
+func (e *Engine) PID() uint32 {
+	var pid uint32
+	_ = e.do(func() {
+		if e.sess != nil {
+			pid = e.sess.PID()
+		}
+	})
+	return pid
+}
+
+// WithSession runs fn with the live game session on the engine goroutine
+// (fn is not called when Tekken isn't open).
+func (e *Engine) WithSession(fn func(s *game.Session)) {
+	_ = e.do(func() {
+		if e.sess != nil && e.sess.Alive() {
+			fn(e.sess)
+		}
+	})
+}

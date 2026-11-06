@@ -49,6 +49,16 @@
             "id": "ff2",
             "label": "f,f2",
             "role": "outer"
+          },
+          {
+            "id": "fire",
+            "label": "Main shockwave",
+            "role": "trail"
+          },
+          {
+            "id": "aura00",
+            "label": "Main shockwave aura",
+            "role": "glow"
           }
         ]
       },

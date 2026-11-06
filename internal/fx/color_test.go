@@ -77,8 +77,8 @@ func TestCatalogKeysUnique(t *testing.T) {
 			}
 		}
 	}
-	if len(seen) != 55 {
-		t.Fatalf("expected 55 parts, got %d", len(seen))
+	if len(seen) != 57 {
+		t.Fatalf("expected 57 parts, got %d", len(seen))
 	}
 }
 

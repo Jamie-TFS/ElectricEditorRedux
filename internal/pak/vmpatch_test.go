@@ -1,6 +1,7 @@
 package pak
 
 import (
+	"bytes"
 	"os"
 	"testing"
 )
@@ -60,5 +61,42 @@ func TestInstallReplacesReadOnly(t *testing.T) {
 	}
 	if m, _ := os.ReadDir(ModsDir(paks)); len(m) != 3 {
 		t.Fatal("leftover files", len(m))
+	}
+}
+
+func TestLiveTableMatchesBuild(t *testing.T) {
+	path := os.Getenv("EE_NSBEAM")
+	if path == "" {
+		t.Skip("EE_NSBEAM not set")
+	}
+	data, _ := os.ReadFile(path)
+	cols := map[string][3]float64{"swl-beam-e8#1": {0.2, 0.4, 1}, "swl-beam-light": {1, 0, 0.5}}
+	if _, err := applyVMs(data, cols); err != nil {
+		t.Fatal(err)
+	}
+	for name, slots := range VMColours([]Edit{{VM: cols}}) {
+		tab, ok := LiveTable(name, slots)
+		if !ok || !bytes.Contains(data, tab) {
+			t.Fatalf("%s: live table not in the built asset", name)
+		}
+	}
+}
+
+func TestAnchorsApplyNative(t *testing.T) {
+	path := os.Getenv("EE_NSBEAM")
+	if path == "" {
+		t.Skip("EE_NSBEAM not set")
+	}
+	data, _ := os.ReadFile(path)
+	vm := map[string][3]float64{}
+	for _, n := range Anchors() {
+		vm[n+"#native"] = [3]float64{}
+	}
+	n, err := applyVMs(data, vm)
+	if err != nil || n != len(Anchors()) {
+		t.Fatal(n, err)
+	}
+	if out := os.Getenv("EE_NSBEAM_OUT"); out != "" {
+		os.WriteFile(out, data, 0o644)
 	}
 }

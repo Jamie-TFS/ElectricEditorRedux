@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"app/internal/fx"
+	"app/internal/game"
 	"app/internal/pak"
 	"app/internal/store"
 
@@ -28,6 +29,16 @@ type PakStatus struct {
 type pakState struct {
 	Paks      string            `json:"paks"`      // last known Tekken Paks folder
 	Installed map[string]string `json:"installed"` // mod name -> spec of its files in Paks\mods
+	// script colours in the installed mod colours (patch -> slot -> colour),
+	// what the game holds in memory once it has loaded it
+	LiveVM map[string]map[int][3]float64 `json:"liveVM,omitempty"`
+	// spec of the installed mod with script colours left out: if the wanted
+	// mod only differs in those, everything can be updated live
+	Shape string `json:"shape,omitempty"`
+	// script colours written live into a running Tekken (so an app restart
+	// mid-session still knows what memory holds)
+	LivePID uint32                        `json:"livePID,omitempty"`
+	LiveMem map[string]map[int][3]float64 `json:"liveMem,omitempty"`
 }
 
 // slot is one generated mod: the claw colours, or the effect finder's test
@@ -62,6 +73,12 @@ type PakMods struct {
 	st        pakState
 	seen      string
 	seenSince time.Time
+
+	// live script colours for the current Tekken process
+	livePID  uint32
+	liveCur  map[string]map[int][3]float64 // what memory holds now
+	liveTry  string                        // wanted colours last tried
+	liveWhen time.Time
 }
 
 func NewPakMods(s *store.Store, e *Engine) *PakMods {
@@ -237,6 +254,28 @@ func (m *PakMods) edits(profile store.Profile) []pak.Edit {
 		out = append(out, pak.Edit{Asset: part.Asset, From: part.Copy.From, Rename: part.Copy.Rename, Keep: true})
 		out = append(out, copyUsers(part.Copy)...)
 	}
+	// Anchors: with any mod effect on, the mod also routes the beam
+	// emitters that look exactly like the game when uncoloured, so their
+	// colours can change live from then on (no restart).
+	if len(out) > 0 || len(scripts) > 0 {
+		for _, name := range pak.Anchors() {
+			asset := pak.VMPatches[name].Asset
+			se := scripts[asset]
+			if se == nil {
+				se = &pak.Edit{Asset: asset, VM: map[string][3]float64{}}
+				scripts[asset] = se
+			}
+			used := false
+			for k := range se.VM {
+				if n, _ := pak.VMKey(k); n == name {
+					used = true
+				}
+			}
+			if !used {
+				se.VM[name+"#native"] = [3]float64{}
+			}
+		}
+	}
 	for _, se := range scripts {
 		out = append(out, *se)
 	}
@@ -300,6 +339,130 @@ func spec(edits []pak.Edit) string {
 		}
 	}
 	return b.String()
+}
+
+// shape is spec without the script colours (which can change live).
+func shape(edits []pak.Edit) string {
+	c := make([]pak.Edit, len(edits))
+	for i, e := range edits {
+		c[i] = e
+		if len(e.VM) > 0 {
+			// which scripts are routed matters, not their colours or slots
+			vm := map[string][3]float64{}
+			for k := range e.VM {
+				n, _ := pak.VMKey(k)
+				vm[n] = [3]float64{}
+			}
+			c[i].VM = vm
+		}
+	}
+	return spec(c)
+}
+
+// live pushes script colours (beams, chain auras) straight into the running
+// game. The installed mod routes each recoloured emitter through its own
+// colour constants, and the game reads a script's constants (its
+// ScriptLiterals table, kept byte for byte as cooked) every time a particle
+// spawns. So once Tekken has loaded the mod, a colour change is just new
+// floats in those tables: found through Unreal's object list, matched byte
+// for byte against what the mod holds, written and read back. Script code is
+// never touched. Returns true when everything the profile wants is live.
+func (m *PakMods) live(edits []pak.Edit) bool {
+	pid := m.engine.PID()
+	if pid == 0 || m.st.Installed[pak.ModName] == "" {
+		return false
+	}
+	if pid != m.livePID {
+		m.livePID, m.liveTry = pid, ""
+		m.liveCur = map[string]map[int][3]float64{}
+		src := m.st.LiveVM // a new Tekken holds the mod it loaded
+		if pid == m.st.LivePID && m.st.LiveMem != nil {
+			src = m.st.LiveMem // the app restarted mid-session
+		}
+		for k, v := range src {
+			m.liveCur[k] = v
+		}
+	}
+	defer func() {
+		if m.st.LivePID != pid || fmt.Sprint(m.st.LiveMem) != fmt.Sprint(m.liveCur) {
+			m.st.LivePID, m.st.LiveMem = pid, m.liveCur
+			m.save()
+		}
+	}()
+	want := pak.VMColours(edits)
+	type change struct {
+		name     string
+		old, new []byte
+	}
+	byAsset := map[string][]change{}
+	for name, cols := range want {
+		cur, ok := m.liveCur[name]
+		if !ok || sameCols(cur, cols) {
+			continue // not in the loaded mod (needs a restart), or already live
+		}
+		old, ok1 := pak.LiveTable(name, cur)
+		nw, ok2 := pak.LiveTable(name, cols)
+		if ok1 && ok2 {
+			a := pak.VMPatches[name].Asset
+			byAsset[a] = append(byAsset[a], change{name, old, nw})
+		}
+	}
+	key := fmt.Sprint(want)
+	// an effect that isn't loaded yet (fighter not in the match) has no
+	// scripts to find: retry now and then
+	if len(byAsset) > 0 && (key != m.liveTry || time.Since(m.liveWhen) > 20*time.Second) {
+		m.liveTry, m.liveWhen = key, time.Now()
+		assets := make([]string, 0, len(byAsset))
+		for a := range byAsset {
+			assets = append(assets, a)
+		}
+		sort.Strings(assets)
+		m.engine.WithSession(func(s *game.Session) {
+			for _, a := range assets {
+				ch := byAsset[a]
+				olds := make([][]byte, len(ch))
+				for i, c := range ch {
+					olds[i] = c.old
+				}
+				found := s.ScriptTables(a, olds)
+				var wrote []string
+				missing := 0
+				for i, c := range ch {
+					ok := len(found[i]) > 0
+					for _, addr := range found[i] {
+						if s.WriteChecked(addr, c.new) != nil {
+							ok = false
+						}
+					}
+					if ok {
+						m.liveCur[c.name] = want[c.name]
+						wrote = append(wrote, c.name)
+					} else {
+						missing++
+					}
+				}
+				builderLog(m.claws.builder.Dir, "live %s: %d scripts loaded, updated %d tables %v, not found %d", a, s.ScriptCount(a), len(wrote), wrote, missing)
+			}
+		})
+	}
+	for name, cols := range want {
+		if cur, ok := m.liveCur[name]; !ok || !sameCols(cur, cols) {
+			return false
+		}
+	}
+	return shape(edits) == m.st.Shape
+}
+
+func sameCols(a, b map[int][3]float64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 // paksDir finds Tekken's Paks folder: from the running game, else the last
@@ -388,6 +551,9 @@ func (m *PakMods) sync(s *slot, paks string, edits []pak.Edit) (state string, er
 			return "pending", err
 		}
 		return "error", err
+	}
+	if name == pak.ModName {
+		m.st.LiveVM, m.st.Shape = pak.VMColours(edits), shape(edits)
 	}
 	m.st.Installed[name] = want
 	m.save()
@@ -480,10 +646,15 @@ func (m *PakMods) step() {
 	if time.Since(m.seenSince) < 1200*time.Millisecond {
 		return
 	}
-	if want != m.st.Installed[pak.ModName] && want != "" && want != m.claws.built && want != m.claws.failed {
+	liveOK := running && len(edits) > 0 && m.live(edits)
+	if want != m.st.Installed[pak.ModName] && want != "" && want != m.claws.built && want != m.claws.failed && !liveOK {
 		m.set("building", "Building mod colours…")
 	}
 	st, err := m.sync(m.claws, paks, edits)
+	if liveOK && (st == "pending" || st == "ready") {
+		m.set("ready", "Mod colours updated live in game. They'll also be there next time you start Tekken.")
+		return
+	}
 	switch st {
 	case "off":
 		m.set("off", "")
