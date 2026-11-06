@@ -78,7 +78,7 @@ func NewPakMods(s *store.Store, e *Engine) *PakMods {
 	for _, c := range fx.Catalog {
 		for _, ef := range c.Effects {
 			for _, p := range ef.Parts {
-				if p.Asset != "" || p.VMAsset != "" {
+				if p.Asset != "" || len(p.VMAssets) > 0 {
 					m.assets[fx.Key(c.ID, ef.ID, p.ID)] = p
 				}
 			}
@@ -188,17 +188,23 @@ func (m *PakMods) edits(profile store.Profile) []pak.Edit {
 		}
 		col := [3]float64{c.R() * br, c.G() * br, c.B() * br}
 		if len(part.VM) > 0 {
-			se := scripts[part.VMAsset]
-			if se == nil {
-				se = &pak.Edit{Asset: part.VMAsset, VM: map[string][3]float64{}}
-				scripts[part.VMAsset] = se
-			}
+			var keys []string
 			for _, k := range part.VM {
-				if k == "*" { // every generated patch of this system
-					for _, g := range pak.GrlBeamKeys[part.VMAsset] {
-						se.VM[g] = col
+				if k == "*" { // every generated patch of the part's systems
+					for _, a := range part.VMAssets {
+						keys = append(keys, pak.SystemPatches[a]...)
 					}
 					continue
+				}
+				keys = append(keys, k)
+			}
+			for _, k := range keys {
+				name, _ := pak.VMKey(k)
+				asset := pak.VMPatches[name].Asset
+				se := scripts[asset]
+				if se == nil {
+					se = &pak.Edit{Asset: asset, VM: map[string][3]float64{}}
+					scripts[asset] = se
 				}
 				se.VM[k] = col
 			}

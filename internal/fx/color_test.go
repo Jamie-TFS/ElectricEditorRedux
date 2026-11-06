@@ -65,7 +65,7 @@ func TestCatalogKeysUnique(t *testing.T) {
 					t.Fatalf("duplicate key %s", k)
 				}
 				seen[k] = true
-				if (e.Kind == "pak") != (p.Asset != "" || p.VMAsset != "") || (e.Kind == "pak" && len(p.Paths) > 0) {
+				if (e.Kind == "pak") != (p.Asset != "" || len(p.VMAssets) > 0) || (e.Kind == "pak" && len(p.Paths) > 0) {
 					t.Fatalf("%s: pak parts need an Asset and no curve paths", k)
 				}
 				for _, path := range p.Paths {

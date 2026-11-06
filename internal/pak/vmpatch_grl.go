@@ -13,12 +13,13 @@ func init() {
 	}
 }
 
-// GrlBeamKeys lists the patches per Niagara system.
-var GrlBeamKeys = map[string][]string{
+// SystemPatches lists the generated patches per Niagara system (Kazuya beams
+// here; other generated files add theirs in init).
+var SystemPatches = map[string][]string{
 	"NS_EF_Grl_Beam":       {"NS_EF_Grl_Beam:AuraLocal_4", "NS_EF_Grl_Beam:Beam001_1", "NS_EF_Grl_Beam:BeamCoreBlack001_1", "NS_EF_Grl_Beam:BeamCoreFlash_1", "NS_EF_Grl_Beam:BeamCoreGlowSmall_0", "NS_EF_Grl_Beam:BeamCoreGlow_4", "NS_EF_Grl_Beam:BeamHeadBurst002_1", "NS_EF_Grl_Beam:BeamParticle_21", "NS_EF_Grl_Beam:BurstCore_6", "NS_EF_Grl_Beam:Fire01_col_0", "NS_EF_Grl_Beam:Fire02001_3", "NS_EF_Grl_Beam:FireBlue001_11", "NS_EF_Grl_Beam:FireCore001_5", "NS_EF_Grl_Beam:Glow001_13", "NS_EF_Grl_Beam:GlowBurst_0", "NS_EF_Grl_Beam:Spark001_7", "NS_EF_Grl_Beam:Thunder_26"},
 	"NS_EF_Grl_BeamCharge": {"NS_EF_Grl_BeamCharge:Cross_streaks01_8", "NS_EF_Grl_BeamCharge:Cross_streaks02_9", "NS_EF_Grl_BeamCharge:Flash_Glow_2", "NS_EF_Grl_BeamCharge:Thunder_26"},
 	"NS_EF_Grl_BeamL":      {"NS_EF_Grl_BeamL:AuraLocal_4", "NS_EF_Grl_BeamL:BeamBlack_4", "NS_EF_Grl_BeamL:BeamCoreFlash_1", "NS_EF_Grl_BeamL:BeamCoreGlowSmall_0", "NS_EF_Grl_BeamL:BeamCoreGlow_4", "NS_EF_Grl_BeamL:BeamHeadBurst002_1", "NS_EF_Grl_BeamL:Beam_1", "NS_EF_Grl_BeamL:BurstCore_6", "NS_EF_Grl_BeamL:BurstSphere_2", "NS_EF_Grl_BeamL:FireBlackFlont_15", "NS_EF_Grl_BeamL:FireBottom_17", "NS_EF_Grl_BeamL:FireCore_16", "NS_EF_Grl_BeamL:FireNemoto_28", "NS_EF_Grl_BeamL:FloorGlow_12", "NS_EF_Grl_BeamL:GlowBurst_0", "NS_EF_Grl_BeamL:Ring_3", "NS_EF_Grl_BeamL:Spark001_7", "NS_EF_Grl_BeamL:Streak_18"},
-	"NS_EF_Grl_BeamN":      {"NS_EF_Grl_BeamN:BeamBlsck_0", "NS_EF_Grl_BeamN:BeamCoreBurstYoin_10", "NS_EF_Grl_BeamN:BeamCoreBurst_0", "NS_EF_Grl_BeamN:BeamCoreGlow001_5", "NS_EF_Grl_BeamN:BeamLight_15", "NS_EF_Grl_BeamN:BeamParticle_21", "NS_EF_Grl_BeamN:BeamThunder_6", "NS_EF_Grl_BeamN:Burst001_1", "NS_EF_Grl_BeamN:BurstCore001_0", "NS_EF_Grl_BeamN:BurstCore002_2", "NS_EF_Grl_BeamN:BurstGlow_4", "NS_EF_Grl_BeamN:Burst_3", "NS_EF_Grl_BeamN:Ring001_14", "NS_EF_Grl_BeamN:Ring_0"},
+	"NS_EF_Grl_BeamN":      {"NS_EF_Grl_BeamN:BeamBlsck_0", "NS_EF_Grl_BeamN:BeamCoreBurstYoin_10", "NS_EF_Grl_BeamN:BeamCoreBurst_0", "NS_EF_Grl_BeamN:BeamCoreGlow001_5", "NS_EF_Grl_BeamN:BeamLight_15", "NS_EF_Grl_BeamN:BeamParticle_21", "NS_EF_Grl_BeamN:BeamThunder_6", "NS_EF_Grl_BeamN:Burst001_1", "NS_EF_Grl_BeamN:BurstCore001_0", "NS_EF_Grl_BeamN:BurstCore002_2", "NS_EF_Grl_BeamN:BurstGlow_4", "NS_EF_Grl_BeamN:Burst_3", "NS_EF_Grl_BeamN:LightningLarge_Impact_7", "NS_EF_Grl_BeamN:Ring001_14", "NS_EF_Grl_BeamN:Ring_0", "NS_EF_Grl_BeamN:VAT005_4"},
 }
 
 var grlBeamPatches = map[string]VMPatch{
@@ -328,6 +329,12 @@ var grlBeamPatches = map[string]VMPatch{
 		LitSig: "04000000050000000000000001000000acc52737bd378635000000000000803f0ad7a33d020000000000f04103000000",
 		Edits:  []OpEdit{{0, 1, 0x28c, 0x298, false}, {249, 1, 0x2, 0x3, true}, {249, 2, 0x2, 0x28c, false}, {122, 1, 0x290, 0x298, false}, {257, 1, 0x2, 0x3, true}, {257, 2, 0x3, 0x290, false}, {125, 1, 0x294, 0x298, false}, {265, 1, 0x2, 0x3, true}, {265, 2, 0x4, 0x294, false}},
 		Sets:   []LitSet{{Off: 0, Chan: 0, Gain: 1}, {Off: 4, Chan: 1, Gain: 1}, {Off: 8, Chan: 2, Gain: 1}}},
+	"NS_EF_Grl_BeamN:LightningLarge_Impact_7": {Asset: "NS_EF_Grl_BeamN", Len: 1168,
+		Sig:    "900400005b84024d0000000000004d0000090001004d00000a0002004d00000b0003004d",
+		Hash:   "21e5e51ea67086d896258a1dbab9db599ba5b9144ed39f5839341e076f0cd9cc",
+		LitSig: "04000000050000000000000001000000acc52737bd378635000000000000803f100000000d661900a2f5b2a05ff36e3c08000000ffffff000000804b000000400000a04002000000",
+		Edits:  []OpEdit{{0, 1, 0x284, 0x290, false}, {489, 1, 0x0, 0x1, true}, {489, 2, 0x1, 0x284, false}, {136, 1, 0x288, 0x290, false}, {497, 1, 0x0, 0x1, true}, {497, 2, 0x2, 0x288, false}, {139, 1, 0x28c, 0x290, false}, {505, 1, 0x0, 0x1, true}, {505, 2, 0x3, 0x28c, false}},
+		Sets:   []LitSet{{Off: 0, Chan: 0, Gain: 200}, {Off: 4, Chan: 1, Gain: 200}, {Off: 8, Chan: 2, Gain: 200}}},
 	"NS_EF_Grl_BeamN:Ring001_14": {Asset: "NS_EF_Grl_BeamN", Len: 1595,
 		Sig:    "3b0600005b84024d0000000000004e0000000001004e0000010002004d0000110003004d",
 		Hash:   "0a6d4dbe917b942882cb676df7a4a82a8bba19ba643b1e4f3012035e1b81c86c",
@@ -340,4 +347,10 @@ var grlBeamPatches = map[string]VMPatch{
 		LitSig: "05000000060000000000000001000000acc52737bd378635000000000000803f020000000000f041cdcccc3d100000000d6619008dc4618d5ff36e3c08000000ffffff000000804b030000009a99993e0000004004000000cdcc4c3e",
 		Edits:  []OpEdit{{0, 1, 0x284, 0x290, false}, {265, 1, 0x2, 0x3, true}, {265, 2, 0x3, 0x284, false}, {164, 1, 0x288, 0x290, false}, {273, 1, 0x2, 0x3, true}, {273, 2, 0x4, 0x288, false}, {167, 1, 0x28c, 0x290, false}, {281, 1, 0x2, 0x3, true}, {281, 2, 0x5, 0x28c, false}},
 		Sets:   []LitSet{{Off: 0, Chan: 0, Gain: 1}, {Off: 4, Chan: 1, Gain: 1}, {Off: 8, Chan: 2, Gain: 1}}},
+	"NS_EF_Grl_BeamN:VAT005_4": {Asset: "NS_EF_Grl_BeamN", Len: 1342,
+		Sig:    "3e0500005b84024d0000000000004d0000010001004d0000080002004d00000a0003004d",
+		Hash:   "d5d7e56c92be73c8aef40e317fe680883cec486812f60627e1aa14007e687351",
+		LitSig: "05000000060000000000000001000000acc52737bd378635000000000000803f100000000d6619005d908be25ff36e3c08000000ffffff000000804b000000400000a0400200000003000000",
+		Edits:  []OpEdit{{0, 1, 0x284, 0x290, false}, {531, 1, 0x0, 0x1, true}, {531, 2, 0x3, 0x284, false}, {178, 1, 0x288, 0x290, false}, {539, 1, 0x0, 0x1, true}, {539, 2, 0x4, 0x288, false}, {181, 1, 0x28c, 0x290, false}, {547, 1, 0x0, 0x1, true}, {547, 2, 0x5, 0x28c, false}},
+		Sets:   []LitSet{{Off: 0, Chan: 0, Gain: 200}, {Off: 4, Chan: 1, Gain: 200}, {Off: 8, Chan: 2, Gain: 200}}},
 }

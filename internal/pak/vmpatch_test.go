@@ -18,8 +18,11 @@ func TestVMPatchReal(t *testing.T) {
 	orig := append([]byte(nil), data...)
 	n, err := applyVMs(data, map[string][3]float64{
 		"swl-beam-bolt": {0.1, 1, 0.2}, "swl-beam-e8#1": {0.1, 1, 0.2}, "swl-beam-light": {0.1, 1, 0.2},
+		"swl-beam-thunder": {0.1, 1, 0.2}, "swl-beam-head": {0.1, 1, 0.2}, "swl-beam-burst": {0.1, 1, 0.2},
+		"swl-beam-glow001": {0.1, 1, 0.2}, "swl-beam-glowburst": {0.1, 1, 0.2}, "swl-beam-firecore001": {0.1, 1, 0.2},
+		"swl-beam-fireblue001": {0.1, 1, 0.2},
 	})
-	if err != nil || n != 3 {
+	if err != nil || n != 10 {
 		t.Fatal(n, err)
 	}
 	if len(data) != len(orig) {

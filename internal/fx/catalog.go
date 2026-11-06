@@ -32,10 +32,10 @@ type Part struct {
 	// assets (with the same renames) that must point at the copy instead.
 	Copy *Copy `json:"-"`
 	// VM names script patches (pak.VMPatches) of the Niagara system
-	// VMAsset that are recoloured with this part, for emitters whose colour
+	// VMAssets that are recoloured with this part, for emitters whose colour
 	// is written by their script. Works alongside Asset or on its own.
-	VM      []string `json:"-"`
-	VMAsset string   `json:"-"`
+	VM       []string `json:"-"`
+	VMAssets []string `json:"-"`
 }
 
 type Copy struct {
@@ -123,10 +123,10 @@ var Catalog = []Character{
 		{ID: "beam", Label: "Beam", Kind: "pak",
 			Note: "Kazuya's eye beam: the beam, its lightning, fire and glow. White highlights stay white.",
 			Parts: []Part{
-				{ID: "main", Label: "Beam", Role: "core", VMAsset: "NS_EF_Grl_Beam", VM: []string{"*"}},
-				{ID: "beaml", Label: "Beam L", Role: "glow", VMAsset: "NS_EF_Grl_BeamL", VM: []string{"*"}},
-				{ID: "beamn", Label: "Beam N", Role: "outer", VMAsset: "NS_EF_Grl_BeamN", VM: []string{"*"}},
-				{ID: "charge", Label: "Charge-up", Role: "trail", VMAsset: "NS_EF_Grl_BeamCharge", VM: []string{"*"}},
+				{ID: "main", Label: "Beam", Role: "core", VMAssets: []string{"NS_EF_Grl_Beam"}, VM: []string{"*"}},
+				{ID: "beaml", Label: "Beam L", Role: "glow", VMAssets: []string{"NS_EF_Grl_BeamL"}, VM: []string{"*"}},
+				{ID: "beamn", Label: "Beam N", Role: "outer", VMAssets: []string{"NS_EF_Grl_BeamN"}, VM: []string{"*"}},
+				{ID: "charge", Label: "Charge-up", Role: "trail", VMAssets: []string{"NS_EF_Grl_BeamCharge"}, VM: []string{"*"}},
 			}},
 	}},
 	{ID: "jin", Name: "Jin", Effects: []Effect{
@@ -157,9 +157,9 @@ var Catalog = []Character{
 			Note: "The eye beam: the beam line, its lightning and the glow inside it.",
 			Parts: []Part{
 				{ID: "lightning", Label: "Lightning", Role: "core", Asset: "T_EF_COLA_Swl_Thunder03", Texture: true,
-					VMAsset: "NS_EF_Swl_Beam", VM: []string{"swl-beam-bolt"}},
-				{ID: "main", Label: "Beam", Role: "core", VMAsset: "NS_EF_Swl_Beam", VM: []string{"swl-beam-e8#1", "swl-beam-light"}},
-				{ID: "glow", Label: "Glow", Role: "glow", VMAsset: "NS_EF_Swl_Beam", VM: []string{"swl-beam-e8#0"}},
+					VMAssets: []string{"NS_EF_Swl_Beam"}, VM: []string{"swl-beam-bolt", "swl-beam-thunder"}},
+				{ID: "main", Label: "Beam", Role: "core", VMAssets: []string{"NS_EF_Swl_Beam"}, VM: []string{"swl-beam-e8#1", "swl-beam-light", "swl-beam-head", "swl-beam-burst"}},
+				{ID: "glow", Label: "Glow", Role: "glow", VMAssets: []string{"NS_EF_Swl_Beam"}, VM: []string{"swl-beam-e8#0", "swl-beam-glow001", "swl-beam-glowburst", "swl-beam-firecore001", "swl-beam-fireblue001"}},
 			}},
 		{ID: "aura", Label: "MCR3", Kind: "pak",
 			Note: "The devil aura and chains on MCR3.",
@@ -170,14 +170,15 @@ var Catalog = []Character{
 				{ID: "chains", Label: "Chain glow", Role: "core", Asset: "MI_EF_Swl_S_Chain_00", Params: []string{"EDGEcolor"}},
 			}},
 		{ID: "chains", Label: "Chains", Kind: "pak",
-			Note: "The chains on U1, UF1 and b,f1+2. Shared with Jin, so his change too.",
+			Note: "The chains on U1, UF1 and b,f1+2, and the aura around them. The chains are shared with Jin, so his change too.",
 			Parts: []Part{
 				{ID: "main", Label: "U1 chain", Role: "core", Asset: "MI_EF_Ant_S_Chain02", Params: chainParams},
 				{ID: "chain5", Label: "UF1 chain", Role: "core", Asset: "MI_EF_Ant_S_Chain05", Params: chainParams},
 				{ID: "chain1", Label: "b,f1+2 chain", Role: "core", Asset: "MI_EF_Ant_S_Chain01", Params: chainParams},
 				{ID: "wrap", Label: "Chain wrap", Role: "glow", Asset: "MI_EF_Ant_S_Chain03", Params: chainParams},
 				{ID: "small", Label: "Small links", Role: "outer", Asset: "MI_EF_Ant_S_Chain04", Params: chainParams},
-				{ID: "aura", Label: "Chain aura", Role: "trail", Asset: "MI_EF_Ant_S_Aura24", Params: []string{"EDGEcolor"}},
+				{ID: "aura", Label: "Chain aura", Role: "trail", Asset: "MI_EF_Ant_S_Aura24", Params: []string{"EDGEcolor"},
+					VMAssets: []string{"NS_EF_Swl_Chain01", "NS_EF_Swl_Chain02"}, VM: []string{"*"}},
 			}},
 	}},
 	{ID: "reina", Name: "Reina", Effects: []Effect{
@@ -227,7 +228,9 @@ func PakAssets() []string {
 				} else {
 					add(p.Asset)
 				}
-				add(p.VMAsset)
+				for _, a := range p.VMAssets {
+					add(a)
+				}
 			}
 		}
 	}

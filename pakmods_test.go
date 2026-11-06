@@ -87,3 +87,18 @@ func TestKazuyaBeamExpands(t *testing.T) {
 		}
 	}
 }
+
+func TestChainAuraScripts(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("APPDATA", t.TempDir())
+	s := store.Load()
+	m := NewPakMods(s, NewEngine(s))
+	edits := m.edits(store.Profile{"deviljin.chains.aura": fx.Setting{Mode: "solid", Color: "#ffffff", Brightness: 1}})
+	got := map[string]int{}
+	for _, e := range edits {
+		got[e.Asset] = len(e.VM) + len(e.Params)
+	}
+	if got["NS_EF_Swl_Chain01"] == 0 || got["NS_EF_Swl_Chain02"] == 0 || got["MI_EF_Ant_S_Aura24"] == 0 {
+		t.Fatalf("%v", got)
+	}
+}

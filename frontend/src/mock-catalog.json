@@ -245,7 +245,7 @@
         "id": "chains",
         "label": "Chains",
         "kind": "pak",
-        "note": "The chains on U1, UF1 and b,f1+2. Shared with Jin, so his change too.",
+        "note": "The chains on U1, UF1 and b,f1+2, and the aura around them. The chains are shared with Jin, so his change too.",
         "parts": [
           {
             "id": "main",
